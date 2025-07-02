@@ -235,7 +235,7 @@ class _LoginPageState extends State<LoginPage> {
                         // Login Button
                         SizedBox(
                           width: double.infinity,
-                          height: 40,
+                          height: 50,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _login,
                             style: ElevatedButton.styleFrom(

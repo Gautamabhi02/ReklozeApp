@@ -239,7 +239,7 @@ class _SignupPageState extends State<SignupPage> {
                         // Sign Up Button
                         SizedBox(
                           width: double.infinity,
-                          height: 40,
+                          height: 50,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _signup,
                             style: ElevatedButton.styleFrom(
