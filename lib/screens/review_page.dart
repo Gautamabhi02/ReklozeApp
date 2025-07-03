@@ -193,7 +193,7 @@ class _ReviewPageState extends State<ReviewPage> {
       } catch (_) {}
     }
 
-    debugPrint('Could not parse date from: $input');
+
     return null;
   }
 
@@ -218,10 +218,8 @@ class _ReviewPageState extends State<ReviewPage> {
     buyerName = widget.contractData['Buyer']?.toString() ?? '';
     buyerName = buyerName.replaceFirst(RegExp(r'^-\s*'), '').trim();
 
-    // debugPrint('Raw Seller from contract: ${widget.contractData['Seller']}');
-    // debugPrint('Processed Seller: $sellerName');
-    // debugPrint('Raw Buyer: ${widget.contractData['Buyer']}');
-    // debugPrint('Processed Buyer: $buyerName');
+
+
 
     _extractAdditionalInfo();
     buyerNames = _splitNames(buyerName);
@@ -317,7 +315,6 @@ class _ReviewPageState extends State<ReviewPage> {
       final date = _tryParseDate(value);
       if (date != null) {
         dateFields[field] = date;
-        debugPrint('Parsed absolute date for $field: $date');
         continue;
       }
 
@@ -555,15 +552,23 @@ class _ReviewPageState extends State<ReviewPage> {
     });
 
     try {
+      // final lastContractResponse = await apiService.getLastContractNumber();
+      // String lastContractStr;
+      // if (lastContractResponse['customValues'] is Map) {
+      //   lastContractStr =
+      //       lastContractResponse['customValues']['contract_contract_type']
+      //           ?.toString() ?? "Contract 0000";
+      // } else {
+      //   lastContractStr = "Contract 0000";
+      // }
+      // final numericPart = lastContractStr.replaceAll(RegExp(r'[^0-9]'), '');
+      // final lastContractNumber = int.tryParse(numericPart) ?? 0;
+      //
+      // newContractNumber = (lastContractNumber + 1).toString().padLeft(4, '0');
+      // final contractTag = 'contract #$newContractNumber';
+
       final lastContractResponse = await apiService.getLastContractNumber();
-      String lastContractStr;
-      if (lastContractResponse['customValues'] is Map) {
-        lastContractStr =
-            lastContractResponse['customValues']['contract_contract_type']
-                ?.toString() ?? "Contract 0000";
-      } else {
-        lastContractStr = "Contract 0000";
-      }
+      final lastContractStr = lastContractResponse['value'] ?? "Contract 0000";
       final numericPart = lastContractStr.replaceAll(RegExp(r'[^0-9]'), '');
       final lastContractNumber = int.tryParse(numericPart) ?? 0;
 
@@ -785,8 +790,7 @@ class _ReviewPageState extends State<ReviewPage> {
       String newContractNumber,
       String firstName,) async {
     opportunityCustomFields = _prepareOpportunityFields(newContractNumber);
-    debugPrint('Creating opportunity for contact: $contactId');
-    debugPrint('Opportunity custom fields: ${opportunityCustomFields}');
+
 
     final opportunityData = {
       'pipelineId': "B2abziQpwJBYSr4qzopT",
@@ -799,13 +803,10 @@ class _ReviewPageState extends State<ReviewPage> {
       'customFields': opportunityCustomFields,
     };
 
-    debugPrint('Creating opportunity with data: $opportunityData');
     final opportunityResponse = await apiService.upsertOpportunity(
         opportunityData);
     final opportunityId = opportunityResponse['opportunity']['id'];
     final opportunityName = opportunityData['name'];
-
-    debugPrint('Opportunity created successfully: $opportunityId');
 
     await apiService.updateContactCustomFields(
       contactId,
@@ -814,7 +815,6 @@ class _ReviewPageState extends State<ReviewPage> {
         {'key': 'oppurtunityname', 'value': opportunityName},
       ],
     );
-    debugPrint('Contact updated with opportunity info');
   }
 
   List<Map<String, dynamic>> _prepareOpportunityFields(

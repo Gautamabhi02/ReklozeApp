@@ -26,6 +26,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
   String headerLogo = '';
   String footerLogo = '';
 
+
   final TextEditingController _propertyAddressController = TextEditingController();
   final TextEditingController _introTextController = TextEditingController();
   final TextEditingController _middleTextController = TextEditingController();
