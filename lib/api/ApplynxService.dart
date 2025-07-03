@@ -101,17 +101,34 @@ class ApiApplynxService {
     }
   }
 
+  // Future<Map<String, dynamic>> getLastContractNumber() async {
+  //   // final url = Uri.parse('https://localhost:44318/api/AIOcr/lastContractNumber');
+  //   final url = Uri.parse('${Env.baseUrl}/AIOcr/lastContractNumber');
+  //   final response = await http.get(url);
+  //
+  //   if (response.statusCode == 200) {
+  //     return jsonDecode(response.body);
+  //   } else {
+  //     throw Exception('Failed to get last contract number');
+  //   }
+  // }
   Future<Map<String, dynamic>> getLastContractNumber() async {
-    // final url = Uri.parse('https://localhost:44318/api/AIOcr/lastContractNumber');
     final url = Uri.parse('${Env.baseUrl}/AIOcr/lastContractNumber');
     final response = await http.get(url);
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      final data = jsonDecode(response.body);
+      // Find the contract_contract_type in customValues list
+      final contractEntry = (data['customValues'] as List).firstWhere(
+            (item) => item['name'] == 'contract_contract_type',
+        orElse: () => {'value': 'Contract 0000'},
+      );
+      return {'value': contractEntry['value']};
     } else {
       throw Exception('Failed to get last contract number');
     }
   }
+
 
 
   Future<Map<String, dynamic>> getTestData() async {
