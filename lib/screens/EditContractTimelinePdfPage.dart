@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'dart:convert';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 
+import '../api/api_service.dart' show ApiService;
+import '../service/user_session_service.dart';
 import '../widgets/custom_navbar.dart';
 import '../widgets/navbar_page.dart';
 
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:share_plus/share_plus.dart';
@@ -25,6 +28,10 @@ class EditContractTimelinePdfPage extends StatefulWidget {
 class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPage> {
   String headerLogo = '';
   String footerLogo = '';
+
+  bool _isLoadingImages = false;
+  Uint8List? _headerImageBytes;
+  Uint8List? _footerImageBytes;
 
 
   final TextEditingController _propertyAddressController = TextEditingController();
@@ -82,7 +89,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       'phone': TextEditingController(),
       'email': TextEditingController(),
     });
-
+    _loadImagesFromApi();
     _getLocationDetails();
     fetchOpportunityValue();
 
@@ -120,7 +127,6 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
 
   @override
   void dispose() {
-
     _propertyAddressController.dispose();
     _introTextController.dispose();
     _middleTextController.dispose();
@@ -215,6 +221,124 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       }
     } catch (error) {
       print('Error fetching location details: $error');
+    }
+  }
+
+  // Update your _loadImagesFromApi method
+  Future<void> _loadImagesFromApi() async {
+    setState(() => _isLoadingImages = true);
+
+    try {
+      final userId = UserSessionService().userId;
+      if (userId == null) return;
+
+      final response = await ApiService().getContractTimelineImages(userId);
+
+      if (response['success'] == true && response['data'] != null && response['data'].isNotEmpty) {
+        final imageData = response['data'][0];
+
+        // Helper function to handle both base64 and URL images
+        Future<Uint8List?> _getImageBytes(dynamic imageData) async {
+          if (imageData == null || imageData.toString().isEmpty) return null;
+
+          try {
+            // Try to decode as base64 first
+            if (imageData is String && base64.decode(imageData) is Uint8List) {
+              return base64.decode(imageData);
+            }
+            // If not base64, try as URL
+            else if (imageData is String && Uri.tryParse(imageData)?.hasAbsolutePath == true) {
+              final imageResponse = await http.get(Uri.parse(imageData));
+              if (imageResponse.statusCode == 200) {
+                return imageResponse.bodyBytes;
+              }
+            }
+          } catch (e) {
+            print('Error processing image: $e');
+          }
+          return null;
+        }
+
+        // Handle header image
+        final headerBytes = await _getImageBytes(imageData['headerImage']);
+        if (headerBytes != null) {
+          setState(() {
+            _headerImageBytes = headerBytes;
+            header['logo'] = base64.encode(headerBytes);
+          });
+        }
+
+        // Handle footer image
+        final footerBytes = await _getImageBytes(imageData['footerImage']);
+        if (footerBytes != null) {
+          setState(() {
+            _footerImageBytes = footerBytes;
+            footer['logo'] = base64.encode(footerBytes);
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading images: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load images: ${e.toString()}')),
+      );
+    } finally {
+      setState(() => _isLoadingImages = false);
+    }
+  }
+  bool _showUploadSuccess = false;
+
+  Future<void> _pickAndUploadImage(bool isHeader) async {
+    setState(() => _showUploadSuccess = false);
+
+    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    try {
+      final bytes = await pickedFile.readAsBytes();
+      final base64Image = base64.encode(bytes);
+
+      final userId = UserSessionService().userId;
+      if (userId == null) {
+        throw Exception('User ID not available');
+      }
+
+      final requestBody = {
+        'userId': userId,
+        if (isHeader) 'headerImage': base64Image,
+        if (!isHeader) 'footerImage': base64Image,
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+      };
+
+      final success = await ApiService().uploadContractImages(requestBody);
+
+      if (success) {
+        setState(() {
+          if (isHeader) {
+            _headerImageBytes = bytes;
+            header['logo'] = base64Image;
+          } else {
+            _footerImageBytes = bytes;
+            footer['logo'] = base64Image;
+          }
+          _showUploadSuccess = true;
+        });
+        Future.delayed(Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() => _showUploadSuccess = false);
+          }
+        });
+      }
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(content: Text('Image uploaded successfully!')),
+        // );
+      else {
+        throw Exception('Failed to upload image');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to upload image: ${e.toString()}')),
+      );
     }
   }
 
@@ -398,21 +522,30 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
         color: PdfColors.black,
       );
 
-      // Load images
-      pw.MemoryImage? headerLogoImage;
-      pw.MemoryImage? footerLogoImage;
+      pw.MemoryImage? headerLogoImage = _headerImageBytes != null
+          ? pw.MemoryImage(_headerImageBytes!)
+          : null;
+
+      pw.MemoryImage? footerLogoImage = _footerImageBytes != null
+          ? pw.MemoryImage(_footerImageBytes!)
+          : null;
 
       try {
         if (headerLogo.isNotEmpty) {
           final response = await http.get(Uri.parse(headerLogo));
           if (response.statusCode == 200) {
-            headerLogoImage = pw.MemoryImage(response.bodyBytes);
+            pw.MemoryImage? headerLogoImage = _headerImageBytes != null
+                ? pw.MemoryImage(_headerImageBytes!)
+                : null;
+
           }
         }
         if (footerLogo.isNotEmpty) {
           final response = await http.get(Uri.parse(footerLogo));
           if (response.statusCode == 200) {
-            footerLogoImage = pw.MemoryImage(response.bodyBytes);
+            pw.MemoryImage? footerLogoImage = _footerImageBytes != null
+                ? pw.MemoryImage(_footerImageBytes!)
+                : null;
           }
         }
       } catch (e) {
@@ -436,7 +569,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   pw.Center(
                     child: pw.Container(
                       height: 60,
-                      child: pw.Image(headerLogoImage!),
+                      child: pw.Image(headerLogoImage),
                       margin: const pw.EdgeInsets.only(bottom: 10),
                     ),
                   ),
@@ -584,7 +717,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                           height: 60,
                           width: 150,
                           margin: const pw.EdgeInsets.only(right: 20),
-                          child: pw.Image(footerLogoImage!),
+                          child: pw.Image(footerLogoImage),
                         ),
                       pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -729,7 +862,10 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
     final bool isMobile = MediaQuery.of(context).size.width < 600;
     final double horizontalPadding = isMobile ? 16.0 : 100.0;
     final double tableWidth = isMobile ? MediaQuery.of(context).size.width * 0.9 : 600;
-
+    final double headerImageWidth = isMobile ? MediaQuery.of(context).size.width * 0.5 : 350;
+    final double headerImageHeight = 140;
+    final double footerImageWidth = isMobile ? MediaQuery.of(context).size.width * 0.4 : 200;
+    final double footerImageHeight = 80;
     final TextStyle bodyTextStyle = TextStyle(
       fontFamily: 'Helvetica, Arial',
       fontSize: isMobile ? 14 : 16,
@@ -768,18 +904,61 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header section
+            if (_showUploadSuccess)
+              Container(
+                padding: EdgeInsets.all(12),
+                margin: EdgeInsets.only(top: 20),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Image uploaded successfully!'),
+                      ],
+                    ),
+                    InkWell(
+                      onTap: () {
+                        setState(() => _showUploadSuccess = false);
+                      },
+                      child: Icon(Icons.close, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+
             Container(
               margin: EdgeInsets.only(bottom: 20, top: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (headerLogo.isNotEmpty)
+                  if (_isLoadingImages)
+                    Center(child: CircularProgressIndicator())
+                  else
                     Center(
-                      child: Container(
-                        width: isMobile ? MediaQuery.of(context).size.width * 0.3 : 200,
-                        margin: EdgeInsets.only(bottom: 20),
-                        child: Image.network(headerLogo),
+                      child: Column(
+                        children: [
+                          InkWell(
+                            onTap: () => _pickAndUploadImage(true),
+                            child: Container(
+                              width: headerImageWidth,
+                              height: headerImageHeight,
+                              margin: EdgeInsets.only(bottom: 10),
+                              child: _headerImageBytes != null
+                                  ? Image.memory(_headerImageBytes!, fit: BoxFit.contain)
+                                  : header['logo']?.isNotEmpty ?? false
+                                  ? Image.memory(base64.decode(header['logo']!), fit: BoxFit.contain)
+                                  : Icon(Icons.add_photo_alternate, size: 40),
+                            ),
+                          ),
+                          Text('Click to change header image',
+                              style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
                       ),
                     ),
                   Text(header['date'] ?? '',
@@ -795,53 +974,50 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                     children: [
                       Text('Property Address: ',
                           style: TextStyle(fontWeight: FontWeight.bold)),
+                      // Property Address Dropdown
                       Text(
                         header['propertyAddress']?.isEmpty ?? true
                             ? 'Not specified'
                             : header['propertyAddress']!,
                         style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-
-            // Contract selection dropdown - mobile responsive
-            Container(
-              margin: EdgeInsets.only(bottom: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Select Contract:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    isExpanded: true, // Important for mobile
-                    value: selectedOptionValue.isNotEmpty ? selectedOptionValue : null,
-                    decoration: InputDecoration(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    items: dropdownOptions.map((option) {
-                      return DropdownMenuItem<String>(
-                        value: option['value'],
-                        child: Text(
-                          option['label'] ?? '',
-                          style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
-                          overflow: TextOverflow.ellipsis,
+                      SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: selectedOptionValue.isNotEmpty ? selectedOptionValue : null,
+                        decoration: InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderSide: BorderSide.none, // Hide border
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[100],
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        selectedOptionValue = value ?? '';
-                      });
-                      onContractSelect();
-                    },
+                        items: dropdownOptions.map((option) {
+                          return DropdownMenuItem<String>(
+                            value: option['value'],
+                            child: Text(
+                              option['label'] ?? '',
+                              style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedOptionValue = value ?? '';
+                          });
+                          onContractSelect();
+                        },
+                      ),
+                      SizedBox(height: 8),
+                      // Text(
+                      //   header['propertyAddress']?.isEmpty ?? true
+                      //       ? 'Not specified'
+                      //       : header['propertyAddress']!,
+                      //   style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
+                      // ),
+                    ],
                   ),
                 ],
               ),
@@ -1258,12 +1434,24 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    if (footerLogo.isNotEmpty)
-                      Container(
-                        margin: EdgeInsets.only(right: isMobile ? 20 : 120),
-                        constraints: BoxConstraints(maxHeight: isMobile ? 40 : 60),
-                        child: Image.network(footerLogo),
-                      ),
+                    Column(
+                      children: [
+                        InkWell(
+                          onTap: () => _pickAndUploadImage(false),
+                          child: Container(
+                            width: footerImageWidth,
+                            height: footerImageHeight,
+                            child: _footerImageBytes != null
+                                ? Image.memory(_footerImageBytes!, fit: BoxFit.contain)
+                                : footer['logo']?.isNotEmpty ?? false
+                                ? Image.memory(base64.decode(footer['logo']!), fit: BoxFit.contain)
+                                : Icon(Icons.add_photo_alternate, size: 30),
+                          ),
+                        ),
+                        Text('Click to change footer',
+                            style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      ],
+                    ),
                     Flexible(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -1323,4 +1511,4 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       ),
     );
   }
-}
+  }

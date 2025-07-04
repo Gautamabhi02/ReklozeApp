@@ -31,6 +31,7 @@ class ApiService {
       return false;
     }
   }
+
   Future<Map<String, dynamic>?> login(String username, String password) async {
     final url = Uri.parse('${Env.baseUrl}/Login/login');
     try {
@@ -60,38 +61,71 @@ class ApiService {
     }
   }
 
-    // static const String _baseUrl = 'https://localhost:44318/api/AIOcr/getTextfromChatgpt';
+  // static const String _baseUrl = 'https://localhost:44318/api/AIOcr/getTextfromChatgpt';
   static String get _baseUrl => '${Env.baseUrl}/AIOcr/getTextfromChatgpt';
 
-    static Future<http.Response?> uploadContractWithPrompt({
-      required PlatformFile selectedFile,
-      required String promptText,
-    }) async {
-      final uri = Uri.parse("$_baseUrl?prompt=${Uri.encodeComponent(promptText)}");
+  static Future<http.Response?> uploadContractWithPrompt({
+    required PlatformFile selectedFile,
+    required String promptText,
+  }) async {
+    final uri = Uri.parse(
+        "$_baseUrl?prompt=${Uri.encodeComponent(promptText)}");
 
-      final request = http.MultipartRequest("POST", uri);
+    final request = http.MultipartRequest("POST", uri);
 
-      // Web-compatible: use file.bytes
-      if (selectedFile.bytes == null) return null;
+    // Web-compatible: use file.bytes
+    if (selectedFile.bytes == null) return null;
 
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'file',
-          selectedFile.bytes!,
-          filename: selectedFile.name,
-          contentType: MediaType('application', 'pdf'),
-        ),
-      );
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        selectedFile.bytes!,
+        filename: selectedFile.name,
+        contentType: MediaType('application', 'pdf'),
+      ),
+    );
 
-      try {
-        final streamedResponse = await request.send();
-        final response = await http.Response.fromStream(streamedResponse);
-        return response;
-      } catch (e) {
-        print("Upload error: $e");
-        return null;
-      }
+    try {
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      return response;
+    } catch (e) {
+      print("Upload error: $e");
+      return null;
     }
+  }
 
+  Future<bool> uploadContractImages(Map<String, dynamic> body) async {
+    final url = Uri.parse('${Env.baseUrl}/ContractTimelineImage/upload');
 
+    final headers = {
+      'Content-Type': 'application/json',
+    };
+
+    final response = await http.post(
+      url,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    return response.statusCode == 200;
+  }
+
+  Future<Map<String, dynamic>> getContractTimelineImages(int userId) async {
+    final url = Uri.parse('${Env.baseUrl}/ContractTimelineImage/getContractTimelineImages/$userId');
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Failed to load images');
+      }
+    } catch (e) {
+      throw Exception('Failed to fetch images: $e');
+    }
+  }
 }
+
+
+
