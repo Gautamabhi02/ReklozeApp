@@ -52,6 +52,11 @@ class CustomNavbar extends StatelessWidget {
                   onTap: () => _navigateTo(context, '/editContractTimeline'),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.edit_document),
+                  title: const Text('Upload Image'),
+                  onTap: () => _navigateTo(context, '/uploadImage'),
+                ),
+                ListTile(
                   leading: const Icon(Icons.calendar_today),
                   title: const Text('Calendar'),
                   onTap: () => _navigateTo(context, '/calender'),

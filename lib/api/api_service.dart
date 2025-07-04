@@ -93,5 +93,21 @@ class ApiService {
       }
     }
 
+  Future<bool> uploadContractImages(Map<String, dynamic> body) async {
+    final url = Uri.parse('${Env.baseUrl}/ContractTimelineImage/upload');
+
+    final headers = {
+      'Content-Type': 'application/json',
+    };
+
+    final response = await http.post(
+      url,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+
+    return response.statusCode == 200;
+  }
+
 
 }

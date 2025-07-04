@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_reta/screens/EditContractTimelinePdfPage.dart';
 import 'package:flutter_reta/screens/home_page.dart';
 import 'package:flutter_reta/screens/upload_contract_page.dart';
+import 'package:flutter_reta/screens/upload_contract_timeline_pdf_page.dart';
 import 'package:flutter_reta/service/user_session_service.dart';
 import 'screens/login_page.dart';
 
@@ -42,6 +43,7 @@ class MyApp extends StatelessWidget {
         '/loginPage': (context) => const LoginPage(),
         '/homePage': (context) => const HomePage(),
         '/contract': (context) => const UploadContractPage(),
+        '/uploadImage': (context) => const UploadContractTimelinePdfPage(),
         // '/calender': (context) => const CalendarPage(),
         // '/settingsPage': (context) => const SettingsPage(),
         '/editContractTimeline': (context) => EditContractTimelinePdfPage(),

@@ -49,6 +49,7 @@ dependencies:
   path_provider: ^2.1.5
   open_file: ^3.5.10
   share_plus: ^11.0.0
+  image_picker: ^1.1.2
 
 #  device_info_plus: ^11.5.0
 #  syncfusion_flutter_pdfviewer: ^30.1.37
