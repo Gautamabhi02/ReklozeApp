@@ -28,63 +28,101 @@ class _UploadContractPageState extends State<UploadContractPage> {
   DateTime? _selectedDate;
 
 
-  Future<void> _selectDate(BuildContext context) async{
-    final DateTime? picked  = await showDatePicker(context: context,
-        initialDate:DateTime.now(),
+  void _selectDate(BuildContext context) async {
+    try {
+      final DateTime? picked = await showDatePicker(
+        context: context,
+        initialDate: DateTime.now(),
         firstDate: DateTime(2000),
         lastDate: DateTime(2100),
-      builder: (BuildContext context, Widget? child){
-      return Theme(
-        data: ThemeData.light().copyWith(
-        colorScheme: const ColorScheme.light(
-          primary: Colors.deepPurpleAccent,
-          onPrimary: Colors.white,
-          surface: Colors.white,
-          onSurface: Colors.black,
-        ),
-        dialogBackgroundColor: Colors.white,
-      ),
-        child: child!,
       );
-      }
-    );
-    if (picked != null && picked != _selectedDate) {
-      setState(() {
-        _selectedDate = picked;
-      });
-    }
 
+      if (picked != null && picked != _selectedDate) {
+        setState(() {
+          _selectedDate = picked;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to open date picker.")),
+      );
+    }
   }
 
   void _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
-    if (result != null && result.files.isNotEmpty) {
-      setState(() => _selectedFile = result.files.first);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
 
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.green),
-              SizedBox(width: 10),
-              Text("File Uploaded", style: TextStyle(color: Colors.black)),
+      if (result != null && result.files.isNotEmpty) {
+        setState(() => _selectedFile = result.files.first);
+
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 10),
+                Text("File Uploaded", style: TextStyle(color: Colors.black)),
+              ],
+            ),
+            content: const Text("Your PDF file was uploaded successfully."),
+            actions: [
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.indigo),
+                onPressed: () => Navigator.pop(context),
+                child: const Text("OK"),
+              ),
             ],
           ),
-          content: const Text("Your PDF file was uploaded successfully."),
-          actions: [
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.indigo),
-              onPressed: () => Navigator.pop(context),
-              child: const Text("OK"),
-            ),
-          ],
-        ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("File selection canceled.")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error selecting file: $e")),
       );
     }
   }
+
+  // void _pickFile() async {
+  //
+  //   final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
+  //   if (result != null && result.files.isNotEmpty) {
+  //     setState(() => _selectedFile = result.files.first);
+  //
+  //     showDialog(
+  //       context: context,
+  //       builder: (_) => AlertDialog(
+  //         backgroundColor: Colors.white,
+  //         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+  //         title: const Row(
+  //           children: [
+  //             Icon(Icons.check_circle, color: Colors.green),
+  //             SizedBox(width: 10),
+  //             Text("File Uploaded", style: TextStyle(color: Colors.black)),
+  //           ],
+  //         ),
+  //         content: const Text("Your PDF file was uploaded successfully."),
+  //         actions: [
+  //           TextButton(
+  //             style: TextButton.styleFrom(foregroundColor: Colors.indigo),
+  //             onPressed: () => Navigator.pop(context),
+  //             child: const Text("OK"),
+  //           ),
+  //         ],
+  //       ),
+  //     );
+  //   }
+  // }
 
   Future<void> _simulateUploadProgress() async {
     setState(() {
@@ -436,19 +474,32 @@ class _UploadContractPageState extends State<UploadContractPage> {
   Widget _buildUploadButton() {
     bool isButtonEnabled = _selectedFile != null && _selectedDate != null && !_isUploading;
 
-    return ElevatedButton.icon(
-      icon: const Icon(Icons.cloud_upload),
-      label: const Text("Upload & Extract"),
-      // onPressed: _selectedFile != null && !_isUploading ? _submitContract : null,
-      onPressed: isButtonEnabled ? _submitContract : null,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.deepPurpleAccent,
-        foregroundColor: Colors.white,
-        elevation: 4,
-        minimumSize: const Size.fromHeight(50),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-        disabledBackgroundColor: Colors.grey,
+    return GestureDetector(
+      onTap: () {
+        if (!isButtonEnabled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Please select both a PDF file and an Effective Date."),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      child: AbsorbPointer(
+        absorbing: !isButtonEnabled,
+        child: ElevatedButton.icon(
+          icon: const Icon(Icons.cloud_upload),
+          label: const Text("Upload & Extract"),
+          onPressed: isButtonEnabled ? _submitContract : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isButtonEnabled ? Colors.deepPurpleAccent : Colors.grey,
+            foregroundColor: Colors.white,
+            elevation: 4,
+            minimumSize: const Size.fromHeight(50),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+        ),
       ),
     );
   }

@@ -42,8 +42,6 @@ class MyApp extends StatelessWidget {
         '/loginPage': (context) => const LoginPage(),
         '/homePage': (context) => const HomePage(),
         '/contract': (context) => const UploadContractPage(),
-        // '/calender': (context) => const CalendarPage(),
-        // '/settingsPage': (context) => const SettingsPage(),
         '/editContractTimeline': (context) => EditContractTimelinePdfPage(),
       },
       // home: const MyHomePage(title: 'Flutter Demo Home Page'),

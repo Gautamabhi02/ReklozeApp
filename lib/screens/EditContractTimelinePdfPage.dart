@@ -1125,6 +1125,8 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                         children: [
                           InkWell(
                             onTap: () => _pickAndUploadImage(true),
+                            splashColor: Colors.blue.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
                             child: Container(
                               width: headerImageWidth,
                               height: headerImageHeight,
@@ -1174,6 +1176,9 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         value: selectedOptionValue.isNotEmpty ? selectedOptionValue : null,
+                        disabledHint: _isLoadingText
+                            ? CircularProgressIndicator()
+                            : Text('Loading options...'),
                         decoration: InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           enabledBorder: OutlineInputBorder(
@@ -1523,6 +1528,8 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                                   // Editable Date Field
                                   Padding(
                                     padding: EdgeInsets.all(isMobile ? 6 : 8),
+                                    child: SizedBox(
+                                    height: 48,
                                     child: InkWell(
                                       onTap: () => _selectDate(context, index),
                                       child: AbsorbPointer(
@@ -1544,16 +1551,22 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                                       ),
                                     ),
                                   ),
+                                  ),
 
                                   // Delete Button
                                   Padding(
                                     padding: EdgeInsets.all(isMobile ? 6 : 8),
+                                    child: SizedBox(
+                                    width: 48,
+                                    height: 48,
                                     child: IconButton(
+                                      iconSize: 24,
                                       icon: Icon(Icons.delete,
                                           size: isMobile ? 18 : 20,
                                           color: Colors.red),
                                       onPressed: () => deleteMilestone(index),
                                     ),
+                                  ),
                                   ),
                                 ],
                               );
@@ -1566,6 +1579,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                 ),
               ),
             ),
+
             // Legal text
             Card(
               elevation: 2,
@@ -1658,6 +1672,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
             Container(
               padding: EdgeInsets.only(bottom: 20),
               child: ElevatedButton(
+
                 onPressed: generatePDF,
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(vertical: 16),

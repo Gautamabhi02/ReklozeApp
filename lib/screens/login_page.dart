@@ -29,7 +29,16 @@ class _LoginPageState extends State<LoginPage> {
           _usernameController.text.trim(),
           _passwordController.text.trim(),
         );
-
+        if (response == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Server unreachable or slow network. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return; // Important to exit if response is null
+        }
         if (response != null && response['token'] != null) {
           // Store the token securely
           await UserSessionService().setAuthToken(response['token']);

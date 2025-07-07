@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_navbar.dart';
 import '../widgets/navbar_page.dart';
-import '../screens/fakeRazorPayPage.dart';
+import '../screens/debug_payment_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -99,7 +99,7 @@ class HomePage extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => FakeRazorPayPage(planName: title),
+              builder: (_) => DebugPaymentPage(planName: title),
             ),
           );
         }

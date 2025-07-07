@@ -9,15 +9,15 @@ import '../api/payment_api.dart';
 import '../models/userPaymentModel.dart';
 
 
-class FakeRazorPayPage extends StatefulWidget {
+class DebugPaymentPage  extends StatefulWidget {
   final String planName;
-  const FakeRazorPayPage({super.key, required this.planName});
+  const DebugPaymentPage ({super.key, required this.planName});
 
   @override
-  State<FakeRazorPayPage> createState() => _FakeRazorPayPageState();
+  State<DebugPaymentPage> createState() => _DebugPaymentPageState();
 }
 
-class _FakeRazorPayPageState extends State<FakeRazorPayPage> {
+class _DebugPaymentPageState  extends State<DebugPaymentPage> {
   final TextEditingController _upiController = TextEditingController();
   bool isProcessing = false;
   int secondsLeft = 5;

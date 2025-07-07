@@ -408,18 +408,13 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   void _validateFields() {
-    firstNameError = newFirstName
-        .trim()
-        .isEmpty;
-    lastNameError = newLastName
-        .trim()
-        .isEmpty;
-    emailError = newEmail
-        .trim()
-        .isEmpty || !_validateEmail(newEmail);
-    buyerNameError = buyerNames.isEmpty || buyerNames[0]
-        .trim()
-        .isEmpty;
+    lastNameError = newLastName.trim().isEmpty;
+    emailError = newEmail.trim().isEmpty || !_validateEmail(newEmail);
+    buyerNameError = buyerNames.isEmpty || buyerNames[0].trim().isEmpty;
+
+    firstNameTouched = true;
+    lastNameTouched = true;
+    emailTouched = true;
   }
 
   bool _validateEmail(String email) {
@@ -454,27 +449,34 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   void _selectDate(BuildContext context, String label) async {
-    final currentDate = dateFields[label] ?? DateTime.now();
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: currentDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
+    try {
+      final currentDate = dateFields[label] ?? DateTime.now();
+      DateTime? pickedDate = await showDatePicker(
+        context: context,
+        initialDate: currentDate,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2100),
+      );
 
-    if (pickedDate != null) {
-      setState(() {
-        dateFields[label] = pickedDate;
-        manuallySetDates[label] = true;
-      });
+      if (pickedDate != null && mounted) {
+        setState(() {
+          dateFields[label] = pickedDate;
+          manuallySetDates[label] = true;
+        });
 
-      // Recalculate dependents when either base date changes
-      if (label == 'Effective Date' || label == 'Closing Date') {
-        _calculateRelativeDates();
+        // Recalculate dependents when either base date changes
+        if (label == 'Effective Date' || label == 'Closing Date') {
+          _calculateRelativeDates();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to select date: $e')),
+        );
       }
     }
   }
-
   int? _extractDaysOffset(String text) {
     if (text.isEmpty) return null;
 
@@ -550,7 +552,7 @@ class _ReviewPageState extends State<ReviewPage> {
       progress = 0;
       processingErrors = [];
     });
-
+    await Future.delayed(Duration(milliseconds: 100));
     try {
       // final lastContractResponse = await apiService.getLastContractNumber();
       // String lastContractStr;

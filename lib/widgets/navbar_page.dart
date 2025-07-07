@@ -1,4 +1,3 @@
-// lib/widgets/navbar_page.dart
 import 'package:flutter/material.dart';
 
 class NavbarPage extends StatelessWidget implements PreferredSizeWidget {
@@ -14,11 +13,21 @@ class NavbarPage extends StatelessWidget implements PreferredSizeWidget {
         'Rekloze',
         style: TextStyle(color: Colors.white),
       ),
-      actions: const [
-        Icon(Icons.notifications_none, color: Colors.white),
-        SizedBox(width: 10),
-        Icon(Icons.account_circle, color: Colors.white),
-        SizedBox(width: 10),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_none, color: Colors.white),
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("No new notifications")),
+            );
+          },
+        ),
+        IconButton(
+          icon: const Icon(Icons.account_circle, color: Colors.white),
+          onPressed: () {
+            Navigator.pushNamed(context, '/profile');
+          },
+        ),
       ],
     );
   }
