@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_reta/screens/subscription_page.dart';
-import 'package:flutter_reta/screens/upload_contract_page.dart';
+import 'package:rekloze/screens/upload_contract_page.dart';
+
 import '../service/user_session_service.dart';
 import 'home_page.dart';
 import 'signup_page.dart';

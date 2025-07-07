@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -32,11 +34,14 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
   bool _isLoadingImages = false;
   Uint8List? _headerImageBytes;
   Uint8List? _footerImageBytes;
-
+  bool _isLoadingText = false;
+  Timer? _debounceTimer;
+  final Duration _debounceDelay = Duration(seconds: 1);
 
   final TextEditingController _propertyAddressController = TextEditingController();
   final TextEditingController _introTextController = TextEditingController();
   final TextEditingController _middleTextController = TextEditingController();
+  final TextEditingController _afterMilestoneController = TextEditingController();
   final List<TextEditingController> _milestoneControllers = [];
   final List<TextEditingController> _milestoneNameControllers = [];
 
@@ -49,6 +54,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
 
   String introText = 'We are pleased to announce that we have successfully entered into a contract for the property. While significant milestones have been achieved, there is still work to be done to reach closing. Enclosed, please find a comprehensive timeline and contact details for all parties involved in this transaction.';
   String middleText = 'Successfully closing on this property will require a focused effort and careful attention to a number of details. To help guide us through this process, there are specific dates that we should all be aware of. Please keep these important milestones in mind as we continue to move forward in this transaction.';
+  String afterMilestoneText = 'TIME: Time is of the essence in this Contract. Calendar days, based on where the Property is located, shall be used in computing time periods. Other than time for acceptance and Effective Date as set forth in Paragraph 3, any time periods provided for or dates specified in this Contract, whether preprinted, handwritten, typewritten or inserted herein, which shall end or occur on a Saturday, Sunday, national legal public holiday (as defined in 5 U.S.C. Sec. 6103(a)), or a day on which a national legal public holiday is observed because it fell on a Saturday or Sunday, shall extend to the next calendar day which is not a Saturday, Sunday, national legal public holiday, or a day on which a national legal public holiday is observed.';
   List<Map<String, String>> contactDetails = [];
   List<Map<String, String>> milestones = [];
 
@@ -82,6 +88,13 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
     header['date'] = _getTodayDate();
     _initializeEmptyMilestones();
     _initializeEmptyContactDetails();
+    _loadSavedTextBlocks().then((_) {
+      // Update controllers after text is loaded
+      // _propertyAddressController.text = header['propertyAddress'] ?? '';
+      _introTextController.text = introText;
+      _middleTextController.text = middleText;
+      _afterMilestoneController.text = afterMilestoneText;
+    });
 
     contactControllers = List.generate(4, (_) => {
       'company': TextEditingController(),
@@ -130,11 +143,13 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
     _propertyAddressController.dispose();
     _introTextController.dispose();
     _middleTextController.dispose();
+    _afterMilestoneController.dispose();
     for (var c in _milestoneControllers) { c.dispose(); }
     for (var c in _milestoneNameControllers) { c.dispose(); }
     for (var controllerMap in contactControllers) {
       controllerMap.forEach((key, controller) => controller.dispose());
     }
+    _debounceTimer?.cancel();
     super.dispose();
   }
   String _getTodayDate() {
@@ -341,6 +356,59 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       );
     }
   }
+  Future<void> _loadSavedTextBlocks() async {
+    final userId = UserSessionService().userId;
+    if (userId == null) return;
+
+    setState(() => _isLoadingText = true);
+
+    try {
+      final textBlocks = await ApiService().getContractTextBlocks(userId);
+      if (textBlocks != null) {
+        setState(() {
+          introText = textBlocks['introductionText'] ?? introText;
+          middleText = textBlocks['middleContentText'] ?? middleText;
+          // header['propertyAddress'] = textBlocks['propertyAddress'] ?? header['propertyAddress'];
+          afterMilestoneText = textBlocks['afterMilestoneText'] ??
+              'TIME: Time is of the essence in this Contract. Calendar days, based on where the Property is located, shall be used in computing time periods. Other than time for acceptance and Effective Date as set forth in Paragraph 3, any time periods provided for or dates specified in this Contract, whether preprinted, handwritten, typewritten or inserted herein, which shall end or occur on a Saturday, Sunday, national legal public holiday (as defined in 5 U.S.C. Sec. 6103(a)), or a day on which a national legal public holiday is observed because it fell on a Saturday or Sunday, shall extend to the next calendar day which is not a Saturday, Sunday, national legal public holiday, or a day on which a national legal public holiday is observed.';
+          _introTextController.text = introText;
+          _middleTextController.text = middleText;
+          _afterMilestoneController.text = afterMilestoneText;
+          _propertyAddressController.text = header['propertyAddress'] ?? '';
+        });
+      }
+    } catch (e) {
+      print('Error loading text blocks: $e');
+    } finally {
+      setState(() => _isLoadingText = false);
+    }
+  }
+
+  Future<void> _saveTextBlocks() async {
+    final userId = UserSessionService().userId;
+    if (userId == null) return;
+
+    try {
+      await ApiService().saveContractTextBlocks(
+        userId: userId,
+        introductionText: introText,
+        middleContentText: middleText,
+        afterMilestoneText: _afterMilestoneController.text,
+      );
+      // Optionally show a brief success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Changes saved'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      print('Error saving text blocks: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save changes')),
+      );
+    }
+  }
 
   void onContractSelect() async {
     if (selectedOptionValue.isNotEmpty) {
@@ -496,6 +564,9 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
 
   Future<void> generatePDF() async {
     try {
+      final currentIntroText = _introTextController.text;
+      final currentMiddleText = _middleTextController.text;
+      final currentPropertyAddress = _propertyAddressController.text;
       // Show loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Generating PDF...')),
@@ -522,13 +593,33 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
         color: PdfColors.black,
       );
 
-      pw.MemoryImage? headerLogoImage = _headerImageBytes != null
-          ? pw.MemoryImage(_headerImageBytes!)
-          : null;
+      pw.MemoryImage? headerLogoImage;
+      if (_headerImageBytes != null) {
+        headerLogoImage = pw.MemoryImage(_headerImageBytes!);
+      } else if (headerLogo.isNotEmpty) {
+        try {
+          final response = await http.get(Uri.parse(headerLogo));
+          if (response.statusCode == 200) {
+            headerLogoImage = pw.MemoryImage(response.bodyBytes);
+          }
+        } catch (e) {
+          print('Error loading header logo: $e');
+        }
+      }
 
-      pw.MemoryImage? footerLogoImage = _footerImageBytes != null
-          ? pw.MemoryImage(_footerImageBytes!)
-          : null;
+      pw.MemoryImage? footerLogoImage;
+      if (_footerImageBytes != null) {
+        footerLogoImage = pw.MemoryImage(_footerImageBytes!);
+      } else if (footerLogo.isNotEmpty) {
+        try {
+          final response = await http.get(Uri.parse(footerLogo));
+          if (response.statusCode == 200) {
+            footerLogoImage = pw.MemoryImage(response.bodyBytes);
+          }
+        } catch (e) {
+          print('Error loading footer logo: $e');
+        }
+      }
 
       try {
         if (headerLogo.isNotEmpty) {
@@ -558,7 +649,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
             marginLeft: 36,
             marginRight: 36,
             marginTop: 36,
-            marginBottom: 65,
+            marginBottom: 40,
           ),
           build: (pw.Context context) {
             return pw.Column(
@@ -586,7 +677,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                 pw.SizedBox(height: 8),
 
                 // Intro paragraph
-                pw.Text(introText, style: defaultStyle),
+                pw.Text(currentIntroText, style: defaultStyle),
                 pw.SizedBox(height: 8),
 
                 // Contacts table
@@ -644,7 +735,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                 pw.SizedBox(height: 8),
 
                 // Middle paragraph
-                pw.Text(middleText, style: defaultStyle),
+                pw.Text(currentMiddleText, style: defaultStyle),
                 pw.SizedBox(height: 16),
 
                 // Milestones table
@@ -692,19 +783,8 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                 ),
                 pw.SizedBox(height: 16),
 
-                // Legal text
-                pw.Text(
-                  'TIME: Time is of the essence in this Contract. Calendar days, based on where the Property is located, shall be used in computing time periods. Other than time for acceptance and Effective Date as set forth in Paragraph 3, any time periods provided for or dates specified in this Contract, whether preprinted, handwritten, typewritten or inserted herein, which shall end or occur on a Saturday, Sunday, national legal public holiday (as defined in 5 U.S.C. Sec. 6103(a)), or a day on which a national legal public holiday is observed because it fell on a Saturday or Sunday, shall extend to the next calendar day which is not a Saturday, Sunday, national legal public holiday, or a day on which a national legal public holiday is observed.',
-                  style: defaultStyle,
-                ),
-                pw.SizedBox(height: 8),
-
-                // Note paragraph
-                pw.Text(
-                  'Should you find any discrepancies in our timeline, please notify us as soon as possible and we can adjust accordingly.',
-                  style: defaultStyle,
-                ),
-                pw.SizedBox(height: 40),
+                pw.Text(_afterMilestoneController.text, style: defaultStyle),
+                pw.SizedBox(height: 16),
 
                 // Footer
                 pw.Container(
@@ -857,6 +937,106 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       });
     }
   }
+
+  Widget _buildIntroTextField() {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) {
+          // Save when focus is lost
+          _saveTextBlocks();
+        }
+      },
+      child: TextFormField(
+        controller: _introTextController,
+        maxLines: 5,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+          hintText: 'Click here to edit introduction text...',
+          labelText: 'Introduction Text',
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          fontFamily: 'Helvetica, Arial',
+          color: Colors.black,
+        ),
+        onChanged: (value) {
+          setState(() => introText = value);
+        },
+      ),
+    );
+  }
+
+  Widget _buildMiddleTextField() {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) {
+          // Save when focus is lost
+          _saveTextBlocks();
+        }
+      },
+      child: TextFormField(
+        controller: _middleTextController,
+        maxLines: 5,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+          labelText: 'Middle Content Text',
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          fontFamily: 'Helvetica, Arial',
+          color: Colors.black,
+        ),
+        onChanged: (value) {
+          setState(() => middleText = value);
+        },
+      ),
+    );
+  }
+
+  Widget _buildAfterMilestoneTextField() {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) {
+          _saveTextBlocks();
+        }
+      },
+      child: TextFormField(
+        controller: _afterMilestoneController,
+        maxLines: 5,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+          labelText: 'After Milestone Text',
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          fontFamily: 'Helvetica, Arial',
+          color: Colors.black,
+        ),
+        onChanged: (value) {
+          setState(() => afterMilestoneText = value);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isMobile = MediaQuery.of(context).size.width < 600;
@@ -951,9 +1131,15 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                               margin: EdgeInsets.only(bottom: 10),
                               child: _headerImageBytes != null
                                   ? Image.memory(_headerImageBytes!, fit: BoxFit.contain)
-                                  : header['logo']?.isNotEmpty ?? false
-                                  ? Image.memory(base64.decode(header['logo']!), fit: BoxFit.contain)
-                                  : Icon(Icons.add_photo_alternate, size: 40),
+                                  : headerLogo.isNotEmpty
+                                  ? Image.network(headerLogo, fit: BoxFit.contain)
+                                  : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_photo_alternate, size: 40),
+                                  Text('Click to add header image'),
+                                ],
+                              ),
                             ),
                           ),
                           Text('Click to change header image',
@@ -982,16 +1168,31 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                         style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
                       ),
                       SizedBox(height: 16),
+                      Text('Select Contract: ',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      SizedBox(height: 4),
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         value: selectedOptionValue.isNotEmpty ? selectedOptionValue : null,
                         decoration: InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          border: OutlineInputBorder(
-                            borderSide: BorderSide.none, // Hide border
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.grey.withOpacity(0.3), // Subtle border color
+                              width: 1.0,
+                            ),
+                            borderRadius: BorderRadius.circular(4), // Slightly rounded corners
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.blue.withOpacity(0.5), // Slightly more visible when focused
+                              width: 1.0,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                           filled: true,
-                          fillColor: Colors.grey[100],
+                          fillColor: Colors.grey.withOpacity(0.1), // Very subtle background
+                          hintText: 'Select Contract', // Hint text when nothing is selected
                         ),
                         items: dropdownOptions.map((option) {
                           return DropdownMenuItem<String>(
@@ -1036,18 +1237,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: TextFormField(
-                  initialValue: introText,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    labelText: 'Introduction Text',
-                    labelStyle: TextStyle(color: Colors.grey.shade600),
-                  ),
-                  style: textAreaTextStyle,
-                  onChanged: (value) => setState(() => introText = value),
-                ),
+                child: _buildIntroTextField(),
               ),
             ),
             Card(
@@ -1214,18 +1404,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: TextFormField(
-                  initialValue: middleText,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    labelText: 'Middle Content Text',
-                    labelStyle: TextStyle(color: Colors.grey.shade600),
-                  ),
-                  style: textAreaTextStyle,
-                  onChanged: (value) => setState(() => middleText = value),
-                ),
+                child: _buildMiddleTextField(),
               ),
             ),
 
@@ -1400,20 +1579,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'TIME: Time is of the essence in this Contract. Calendar days, based on where the Property is located, shall be used in computing time periods. Other than time for acceptance and Effective Date as set forth in Paragraph 3, any time periods provided for or dates specified in this Contract, whether preprinted, handwritten, typewritten or inserted herein, which shall end or occur on a Saturday, Sunday, national legal public holiday (as defined in 5 U.S.C. Sec. 6103(a)), or a day on which a national legal public holiday is observed because it fell on a Saturday or Sunday, shall extend to the next calendar day which is not a Saturday, Sunday, national legal public holiday, or a day on which a national legal public holiday is observed.',
-                      style: textAreaTextStyle,
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Should you find any discrepancies in our timeline, please notify us as soon as possible and we can adjust accordingly.',
-                      style: textAreaTextStyle,
-                    ),
-                  ],
-                ),
+                child: _buildAfterMilestoneTextField(),
               ),
             ),
 
@@ -1441,17 +1607,23 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                           child: Container(
                             width: footerImageWidth,
                             height: footerImageHeight,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
                             child: _footerImageBytes != null
                                 ? Image.memory(_footerImageBytes!, fit: BoxFit.contain)
-                                : footer['logo']?.isNotEmpty ?? false
-                                ? Image.memory(base64.decode(footer['logo']!), fit: BoxFit.contain)
-                                : Icon(Icons.add_photo_alternate, size: 30),
+                                : footerLogo.isNotEmpty
+                                ? Image.network(footerLogo, fit: BoxFit.contain)
+                                : Icon(Icons.add_photo_alternate, size: 30, color: Colors.grey),
                           ),
                         ),
+                        SizedBox(height: 4),
                         Text('Click to change footer',
                             style: TextStyle(fontSize: 10, color: Colors.grey)),
                       ],
                     ),
+                    SizedBox(width: 16),
                     Flexible(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,

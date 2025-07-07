@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
-import 'package:flutter_reta/screens/submit_page.dart';
 import 'package:intl/intl.dart';
+import 'package:rekloze/screens/submit_page.dart';
 import '../api/ApplynxService.dart';
 import 'package:pdfx/pdfx.dart';
 

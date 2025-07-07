@@ -259,7 +259,8 @@ class _UploadContractPageState extends State<UploadContractPage> {
           ],
         ),
       );
-    } else {
+    }
+    else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Upload failed")));
     }
   }

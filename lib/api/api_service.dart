@@ -125,6 +125,53 @@ class ApiService {
       throw Exception('Failed to fetch images: $e');
     }
   }
+  Future<bool> saveContractTextBlocks({
+    required int userId,
+    required String introductionText,
+    required String middleContentText,
+    required String afterMilestoneText,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${Env.baseUrl}/ContractTimelineImage/saveText'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'userId': userId,
+          'introductionText': introductionText,
+          'middleContentText': middleContentText,
+          'afterMilestoneText': afterMilestoneText,
+        }),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error saving text blocks: $e');
+      return false;
+    }
+  }
+
+  Future<Map<String, String>?> getContractTextBlocks(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${Env.baseUrl}/ContractTimelineImage/getByUser/$userId'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          return {
+            'introductionText': data['data']['introductionText'] ?? '',
+            'middleContentText': data['data']['middleContentText'] ?? '',
+            'afterMilestoneText': data['data']['afterMilestoneText'] ?? ''
+          };
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching text blocks: $e');
+      return null;
+    }
+  }
 }
 
 

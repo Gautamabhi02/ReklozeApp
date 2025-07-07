@@ -1,4 +1,5 @@
-package com.example.flutter_reta
+package com.rekloze.user
+
 
 import io.flutter.embedding.android.FlutterActivity
 
