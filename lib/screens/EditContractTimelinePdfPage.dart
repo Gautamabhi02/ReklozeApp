@@ -32,6 +32,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
   String footerLogo = '';
 
   bool _isLoadingImages = false;
+  bool _isLoadingFooterImage = false;
   Uint8List? _headerImageBytes;
   Uint8List? _footerImageBytes;
   bool _isLoadingText = false;
@@ -239,7 +240,6 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
     }
   }
 
-  // Update your _loadImagesFromApi method
   Future<void> _loadImagesFromApi() async {
     setState(() => _isLoadingImages = true);
 
@@ -274,31 +274,45 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
           return null;
         }
 
-        // Handle header image
-        final headerBytes = await _getImageBytes(imageData['headerImage']);
-        if (headerBytes != null) {
-          setState(() {
-            _headerImageBytes = headerBytes;
-            header['logo'] = base64.encode(headerBytes);
-          });
+        // Clear existing images first
+        setState(() {
+          _headerImageBytes = null;
+          _footerImageBytes = null;
+        });
+
+        // Load header image
+        if (imageData['headerImage'] != null && imageData['headerImage'].toString().isNotEmpty) {
+          final headerBytes = await _getImageBytes(imageData['headerImage']);
+          if (headerBytes != null) {
+            setState(() {
+              _headerImageBytes = headerBytes;
+              header['logo'] = base64.encode(headerBytes);
+            });
+          }
         }
 
-        // Handle footer image
-        final footerBytes = await _getImageBytes(imageData['footerImage']);
-        if (footerBytes != null) {
-          setState(() {
-            _footerImageBytes = footerBytes;
-            footer['logo'] = base64.encode(footerBytes);
-          });
+        // Load footer image
+        if (imageData['footerImage'] != null && imageData['footerImage'].toString().isNotEmpty) {
+          final footerBytes = await _getImageBytes(imageData['footerImage']);
+          if (footerBytes != null) {
+            setState(() {
+              _footerImageBytes = footerBytes;
+              footer['logo'] = base64.encode(footerBytes);
+            });
+          }
         }
       }
     } catch (e) {
       print('Error loading images: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load images: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load images: ${e.toString()}')),
+        );
+      }
     } finally {
-      setState(() => _isLoadingImages = false);
+      if (mounted) {
+        setState(() => _isLoadingImages = false);
+      }
     }
   }
   bool _showUploadSuccess = false;
@@ -311,12 +325,32 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
 
     try {
       final bytes = await pickedFile.readAsBytes();
-      final base64Image = base64.encode(bytes);
 
+      // Update UI immediately
+      setState(() {
+        if (isHeader) {
+          _headerImageBytes = bytes;
+          header['logo'] = base64.encode(bytes);
+        } else {
+          _footerImageBytes = bytes;
+          footer['logo'] = base64.encode(bytes);
+        }
+      });
+
+      // Upload in background
+      _uploadImageInBackground(isHeader, bytes);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to process image: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _uploadImageInBackground(bool isHeader, Uint8List bytes) async {
+    try {
+      final base64Image = base64.encode(bytes);
       final userId = UserSessionService().userId;
-      if (userId == null) {
-        throw Exception('User ID not available');
-      }
+      if (userId == null) throw Exception('User ID not available');
 
       final requestBody = {
         'userId': userId,
@@ -328,32 +362,19 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       final success = await ApiService().uploadContractImages(requestBody);
 
       if (success) {
-        setState(() {
-          if (isHeader) {
-            _headerImageBytes = bytes;
-            header['logo'] = base64Image;
-          } else {
-            _footerImageBytes = bytes;
-            footer['logo'] = base64Image;
-          }
-          _showUploadSuccess = true;
-        });
+        setState(() => _showUploadSuccess = true);
         Future.delayed(Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() => _showUploadSuccess = false);
-          }
+          if (mounted) setState(() => _showUploadSuccess = false);
         });
-      }
-        // ScaffoldMessenger.of(context).showSnackBar(
-        //   SnackBar(content: Text('Image uploaded successfully!')),
-        // );
-      else {
+      } else {
         throw Exception('Failed to upload image');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to upload image: ${e.toString()}')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload image: ${e.toString()}')),
+        );
+      }
     }
   }
   Future<void> _loadSavedTextBlocks() async {
@@ -1131,10 +1152,12 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                               width: headerImageWidth,
                               height: headerImageHeight,
                               margin: EdgeInsets.only(bottom: 10),
-                              child: _headerImageBytes != null
-                                  ? Image.memory(_headerImageBytes!, fit: BoxFit.contain)
+                              child: _isLoadingImages
+                                  ? Center(child: CircularProgressIndicator()) // Show loading while fetching
+                                  : _headerImageBytes != null
+                                  ? Image.memory(_headerImageBytes!, fit: BoxFit.contain) // Show API image first
                                   : headerLogo.isNotEmpty
-                                  ? Image.network(headerLogo, fit: BoxFit.contain)
+                                  ? Image.network(headerLogo, fit: BoxFit.contain) // Fallback to GHL logo
                                   : Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -1625,7 +1648,9 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                               border: Border.all(color: Colors.grey.shade300),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: _footerImageBytes != null
+                            child: _isLoadingFooterImage
+                                ? Center(child: CircularProgressIndicator())
+                                : _footerImageBytes != null
                                 ? Image.memory(_footerImageBytes!, fit: BoxFit.contain)
                                 : footerLogo.isNotEmpty
                                 ? Image.network(footerLogo, fit: BoxFit.contain)
