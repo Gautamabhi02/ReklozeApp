@@ -1651,10 +1651,41 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                             child: _isLoadingFooterImage
                                 ? Center(child: CircularProgressIndicator())
                                 : _footerImageBytes != null
-                                ? Image.memory(_footerImageBytes!, fit: BoxFit.contain)
+                                ? Image.memory(
+                              _footerImageBytes!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                print('Error displaying memory image: $error');
+                                return Icon(Icons.error);
+                              },
+                            )
                                 : footerLogo.isNotEmpty
-                                ? Image.network(footerLogo, fit: BoxFit.contain)
-                                : Icon(Icons.add_photo_alternate, size: 30, color: Colors.grey),
+                                ? Image.network(
+                              footerLogo,
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                print('Error loading network image: $error');
+                                return Icon(Icons.error);
+                              },
+                            )
+                                : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate, size: 30, color: Colors.grey),
+                                Text('Add footer image', style: TextStyle(fontSize: 10)),
+                              ],
+                            ),
                           ),
                         ),
                         SizedBox(height: 4),

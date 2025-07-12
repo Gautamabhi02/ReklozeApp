@@ -6,7 +6,9 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../constants/env.dart';
 import '../models/signup_model.dart';
+import 'package:http_parser/http_parser.dart';
 import '../models/userPaymentModel.dart';
+import 'dart:typed_data';
 
 
 class ApiService {
@@ -68,32 +70,38 @@ class ApiService {
     required PlatformFile selectedFile,
     required String promptText,
   }) async {
-    final uri = Uri.parse(
-        "$_baseUrl?prompt=${Uri.encodeComponent(promptText)}");
+    try {
+      Uint8List fileBytes;
 
-    final request = http.MultipartRequest("POST", uri);
+      if (selectedFile.bytes != null) {
+        fileBytes = selectedFile.bytes!;
+      } else if (selectedFile.path != null) {
+        fileBytes = await File(selectedFile.path!).readAsBytes();
+      } else {
+        throw Exception("No file bytes or path available.");
+      }
 
-    // Web-compatible: use file.bytes
-    if (selectedFile.bytes == null) return null;
+      // ✅ Encode prompt as query string
+      final uri = Uri.parse('${Env.baseUrl}/AIOcr/getTextfromChatgpt')
+          .replace(queryParameters: {'prompt': promptText});
 
-    request.files.add(
-      http.MultipartFile.fromBytes(
+      var request = http.MultipartRequest('POST', uri);
+
+      request.files.add(http.MultipartFile.fromBytes(
         'file',
-        selectedFile.bytes!,
+        fileBytes,
         filename: selectedFile.name,
         contentType: MediaType('application', 'pdf'),
-      ),
-    );
+      ));
 
-    try {
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-      return response;
+      var streamedResponse = await request.send();
+      return await http.Response.fromStream(streamedResponse);
     } catch (e) {
-      print("Upload error: $e");
+      // debugPrint("Upload error: $e");
       return null;
     }
   }
+
 
   Future<bool> uploadContractImages(Map<String, dynamic> body) async {
     final url = Uri.parse('${Env.baseUrl}/ContractTimelineImage/upload');

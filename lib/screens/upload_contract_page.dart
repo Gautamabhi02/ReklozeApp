@@ -276,17 +276,11 @@ class _UploadContractPageState extends State<UploadContractPage> {
                   context,
                   MaterialPageRoute(
                     builder: (_) => ReviewPage(
-                      pdfFile: _selectedFile!.bytes!,
+                      pdfFile: _selectedFile!.bytes ?? Uint8List(0), // Ensure not null
                       contractData: parsedData,
                       effectiveDate: _selectedDate,
-                      onProceed: () {
-                        // handle proceed action here
-                        print("Proceed clicked");
-                      },
-                      onGoBack: () {
-                        // handle go back action here
-                        Navigator.pop(context);
-                      },
+                      onProceed: () => print("Proceed clicked"),
+                      onGoBack: () => Navigator.pop(context),
                     ),
                   ),
                 );
