@@ -30,7 +30,16 @@ class _SignupPageState extends State<SignupPage> {
         );
 
         final result = await ApiService().signup(model);
-
+        if (result == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Server unreachable or slow network. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
         if (!mounted) return;
 
         if (result) {

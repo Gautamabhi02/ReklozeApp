@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_reta/screens/subscription_page.dart';
-import 'package:flutter_reta/screens/upload_contract_page.dart';
+import 'package:rekloze/screens/upload_contract_page.dart';
+
 import '../service/user_session_service.dart';
 import 'home_page.dart';
 import 'signup_page.dart';
@@ -29,7 +29,16 @@ class _LoginPageState extends State<LoginPage> {
           _usernameController.text.trim(),
           _passwordController.text.trim(),
         );
-
+        if (response == null) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Server unreachable or slow network. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return; // Important to exit if response is null
+        }
         if (response != null && response['token'] != null) {
           // Store the token securely
           await UserSessionService().setAuthToken(response['token']);

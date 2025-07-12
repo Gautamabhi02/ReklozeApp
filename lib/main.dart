@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_reta/screens/EditContractTimelinePdfPage.dart';
-import 'package:flutter_reta/screens/home_page.dart';
-import 'package:flutter_reta/screens/upload_contract_page.dart';
-import 'package:flutter_reta/service/user_session_service.dart';
+import 'package:rekloze/screens/EditContractTimelinePdfPage.dart';
+import 'package:rekloze/screens/home_page.dart';
+import 'package:rekloze/screens/upload_contract_page.dart';
+import 'package:rekloze/service/user_session_service.dart';
 import 'screens/login_page.dart';
 
 
@@ -42,8 +42,6 @@ class MyApp extends StatelessWidget {
         '/loginPage': (context) => const LoginPage(),
         '/homePage': (context) => const HomePage(),
         '/contract': (context) => const UploadContractPage(),
-        // '/calender': (context) => const CalendarPage(),
-        // '/settingsPage': (context) => const SettingsPage(),
         '/editContractTimeline': (context) => EditContractTimelinePdfPage(),
       },
       // home: const MyHomePage(title: 'Flutter Demo Home Page'),

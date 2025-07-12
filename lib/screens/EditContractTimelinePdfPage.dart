@@ -1,16 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'dart:convert';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 
+import '../api/api_service.dart' show ApiService;
+import '../service/user_session_service.dart';
 import '../widgets/custom_navbar.dart';
 import '../widgets/navbar_page.dart';
 
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show Uint8List, kIsWeb;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:share_plus/share_plus.dart';
@@ -26,10 +31,18 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
   String headerLogo = '';
   String footerLogo = '';
 
+  bool _isLoadingImages = false;
+  bool _isLoadingFooterImage = false;
+  Uint8List? _headerImageBytes;
+  Uint8List? _footerImageBytes;
+  bool _isLoadingText = false;
+  Timer? _debounceTimer;
+  final Duration _debounceDelay = Duration(seconds: 1);
 
   final TextEditingController _propertyAddressController = TextEditingController();
   final TextEditingController _introTextController = TextEditingController();
   final TextEditingController _middleTextController = TextEditingController();
+  final TextEditingController _afterMilestoneController = TextEditingController();
   final List<TextEditingController> _milestoneControllers = [];
   final List<TextEditingController> _milestoneNameControllers = [];
 
@@ -42,6 +55,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
 
   String introText = 'We are pleased to announce that we have successfully entered into a contract for the property. While significant milestones have been achieved, there is still work to be done to reach closing. Enclosed, please find a comprehensive timeline and contact details for all parties involved in this transaction.';
   String middleText = 'Successfully closing on this property will require a focused effort and careful attention to a number of details. To help guide us through this process, there are specific dates that we should all be aware of. Please keep these important milestones in mind as we continue to move forward in this transaction.';
+  String afterMilestoneText = 'TIME: Time is of the essence in this Contract. Calendar days, based on where the Property is located, shall be used in computing time periods. Other than time for acceptance and Effective Date as set forth in Paragraph 3, any time periods provided for or dates specified in this Contract, whether preprinted, handwritten, typewritten or inserted herein, which shall end or occur on a Saturday, Sunday, national legal public holiday (as defined in 5 U.S.C. Sec. 6103(a)), or a day on which a national legal public holiday is observed because it fell on a Saturday or Sunday, shall extend to the next calendar day which is not a Saturday, Sunday, national legal public holiday, or a day on which a national legal public holiday is observed.';
   List<Map<String, String>> contactDetails = [];
   List<Map<String, String>> milestones = [];
 
@@ -75,6 +89,13 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
     header['date'] = _getTodayDate();
     _initializeEmptyMilestones();
     _initializeEmptyContactDetails();
+    _loadSavedTextBlocks().then((_) {
+      // Update controllers after text is loaded
+      // _propertyAddressController.text = header['propertyAddress'] ?? '';
+      _introTextController.text = introText;
+      _middleTextController.text = middleText;
+      _afterMilestoneController.text = afterMilestoneText;
+    });
 
     contactControllers = List.generate(4, (_) => {
       'company': TextEditingController(),
@@ -82,7 +103,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       'phone': TextEditingController(),
       'email': TextEditingController(),
     });
-
+    _loadImagesFromApi();
     _getLocationDetails();
     fetchOpportunityValue();
 
@@ -120,15 +141,16 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
 
   @override
   void dispose() {
-
     _propertyAddressController.dispose();
     _introTextController.dispose();
     _middleTextController.dispose();
+    _afterMilestoneController.dispose();
     for (var c in _milestoneControllers) { c.dispose(); }
     for (var c in _milestoneNameControllers) { c.dispose(); }
     for (var controllerMap in contactControllers) {
       controllerMap.forEach((key, controller) => controller.dispose());
     }
+    _debounceTimer?.cancel();
     super.dispose();
   }
   String _getTodayDate() {
@@ -215,6 +237,197 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       }
     } catch (error) {
       print('Error fetching location details: $error');
+    }
+  }
+
+  Future<void> _loadImagesFromApi() async {
+    setState(() => _isLoadingImages = true);
+
+    try {
+      final userId = UserSessionService().userId;
+      if (userId == null) return;
+
+      final response = await ApiService().getContractTimelineImages(userId);
+
+      if (response['success'] == true && response['data'] != null && response['data'].isNotEmpty) {
+        final imageData = response['data'][0];
+
+        // Helper function to handle both base64 and URL images
+        Future<Uint8List?> _getImageBytes(dynamic imageData) async {
+          if (imageData == null || imageData.toString().isEmpty) return null;
+
+          try {
+            // Try to decode as base64 first
+            if (imageData is String && base64.decode(imageData) is Uint8List) {
+              return base64.decode(imageData);
+            }
+            // If not base64, try as URL
+            else if (imageData is String && Uri.tryParse(imageData)?.hasAbsolutePath == true) {
+              final imageResponse = await http.get(Uri.parse(imageData));
+              if (imageResponse.statusCode == 200) {
+                return imageResponse.bodyBytes;
+              }
+            }
+          } catch (e) {
+            print('Error processing image: $e');
+          }
+          return null;
+        }
+
+        // Clear existing images first
+        setState(() {
+          _headerImageBytes = null;
+          _footerImageBytes = null;
+        });
+
+        // Load header image
+        if (imageData['headerImage'] != null && imageData['headerImage'].toString().isNotEmpty) {
+          final headerBytes = await _getImageBytes(imageData['headerImage']);
+          if (headerBytes != null) {
+            setState(() {
+              _headerImageBytes = headerBytes;
+              header['logo'] = base64.encode(headerBytes);
+            });
+          }
+        }
+
+        // Load footer image
+        if (imageData['footerImage'] != null && imageData['footerImage'].toString().isNotEmpty) {
+          final footerBytes = await _getImageBytes(imageData['footerImage']);
+          if (footerBytes != null) {
+            setState(() {
+              _footerImageBytes = footerBytes;
+              footer['logo'] = base64.encode(footerBytes);
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print('Error loading images: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load images: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingImages = false);
+      }
+    }
+  }
+  bool _showUploadSuccess = false;
+
+  Future<void> _pickAndUploadImage(bool isHeader) async {
+    setState(() => _showUploadSuccess = false);
+
+    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    try {
+      final bytes = await pickedFile.readAsBytes();
+
+      // Update UI immediately
+      setState(() {
+        if (isHeader) {
+          _headerImageBytes = bytes;
+          header['logo'] = base64.encode(bytes);
+        } else {
+          _footerImageBytes = bytes;
+          footer['logo'] = base64.encode(bytes);
+        }
+      });
+
+      // Upload in background
+      _uploadImageInBackground(isHeader, bytes);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to process image: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _uploadImageInBackground(bool isHeader, Uint8List bytes) async {
+    try {
+      final base64Image = base64.encode(bytes);
+      final userId = UserSessionService().userId;
+      if (userId == null) throw Exception('User ID not available');
+
+      final requestBody = {
+        'userId': userId,
+        if (isHeader) 'headerImage': base64Image,
+        if (!isHeader) 'footerImage': base64Image,
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+      };
+
+      final success = await ApiService().uploadContractImages(requestBody);
+
+      if (success) {
+        setState(() => _showUploadSuccess = true);
+        Future.delayed(Duration(seconds: 3), () {
+          if (mounted) setState(() => _showUploadSuccess = false);
+        });
+      } else {
+        throw Exception('Failed to upload image');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload image: ${e.toString()}')),
+        );
+      }
+    }
+  }
+  Future<void> _loadSavedTextBlocks() async {
+    final userId = UserSessionService().userId;
+    if (userId == null) return;
+
+    setState(() => _isLoadingText = true);
+
+    try {
+      final textBlocks = await ApiService().getContractTextBlocks(userId);
+      if (textBlocks != null) {
+        setState(() {
+          introText = textBlocks['introductionText'] ?? introText;
+          middleText = textBlocks['middleContentText'] ?? middleText;
+          // header['propertyAddress'] = textBlocks['propertyAddress'] ?? header['propertyAddress'];
+          afterMilestoneText = textBlocks['afterMilestoneText'] ??
+              'TIME: Time is of the essence in this Contract. Calendar days, based on where the Property is located, shall be used in computing time periods. Other than time for acceptance and Effective Date as set forth in Paragraph 3, any time periods provided for or dates specified in this Contract, whether preprinted, handwritten, typewritten or inserted herein, which shall end or occur on a Saturday, Sunday, national legal public holiday (as defined in 5 U.S.C. Sec. 6103(a)), or a day on which a national legal public holiday is observed because it fell on a Saturday or Sunday, shall extend to the next calendar day which is not a Saturday, Sunday, national legal public holiday, or a day on which a national legal public holiday is observed.';
+          _introTextController.text = introText;
+          _middleTextController.text = middleText;
+          _afterMilestoneController.text = afterMilestoneText;
+          _propertyAddressController.text = header['propertyAddress'] ?? '';
+        });
+      }
+    } catch (e) {
+      print('Error loading text blocks: $e');
+    } finally {
+      setState(() => _isLoadingText = false);
+    }
+  }
+
+  Future<void> _saveTextBlocks() async {
+    final userId = UserSessionService().userId;
+    if (userId == null) return;
+
+    try {
+      await ApiService().saveContractTextBlocks(
+        userId: userId,
+        introductionText: introText,
+        middleContentText: middleText,
+        afterMilestoneText: _afterMilestoneController.text,
+      );
+      // Optionally show a brief success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Changes saved'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    } catch (e) {
+      print('Error saving text blocks: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save changes')),
+      );
     }
   }
 
@@ -372,6 +585,9 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
 
   Future<void> generatePDF() async {
     try {
+      final currentIntroText = _introTextController.text;
+      final currentMiddleText = _middleTextController.text;
+      final currentPropertyAddress = _propertyAddressController.text;
       // Show loading indicator
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Generating PDF...')),
@@ -398,21 +614,50 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
         color: PdfColors.black,
       );
 
-      // Load images
       pw.MemoryImage? headerLogoImage;
+      if (_headerImageBytes != null) {
+        headerLogoImage = pw.MemoryImage(_headerImageBytes!);
+      } else if (headerLogo.isNotEmpty) {
+        try {
+          final response = await http.get(Uri.parse(headerLogo));
+          if (response.statusCode == 200) {
+            headerLogoImage = pw.MemoryImage(response.bodyBytes);
+          }
+        } catch (e) {
+          print('Error loading header logo: $e');
+        }
+      }
+
       pw.MemoryImage? footerLogoImage;
+      if (_footerImageBytes != null) {
+        footerLogoImage = pw.MemoryImage(_footerImageBytes!);
+      } else if (footerLogo.isNotEmpty) {
+        try {
+          final response = await http.get(Uri.parse(footerLogo));
+          if (response.statusCode == 200) {
+            footerLogoImage = pw.MemoryImage(response.bodyBytes);
+          }
+        } catch (e) {
+          print('Error loading footer logo: $e');
+        }
+      }
 
       try {
         if (headerLogo.isNotEmpty) {
           final response = await http.get(Uri.parse(headerLogo));
           if (response.statusCode == 200) {
-            headerLogoImage = pw.MemoryImage(response.bodyBytes);
+            pw.MemoryImage? headerLogoImage = _headerImageBytes != null
+                ? pw.MemoryImage(_headerImageBytes!)
+                : null;
+
           }
         }
         if (footerLogo.isNotEmpty) {
           final response = await http.get(Uri.parse(footerLogo));
           if (response.statusCode == 200) {
-            footerLogoImage = pw.MemoryImage(response.bodyBytes);
+            pw.MemoryImage? footerLogoImage = _footerImageBytes != null
+                ? pw.MemoryImage(_footerImageBytes!)
+                : null;
           }
         }
       } catch (e) {
@@ -425,7 +670,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
             marginLeft: 36,
             marginRight: 36,
             marginTop: 36,
-            marginBottom: 65,
+            marginBottom: 40,
           ),
           build: (pw.Context context) {
             return pw.Column(
@@ -436,7 +681,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   pw.Center(
                     child: pw.Container(
                       height: 60,
-                      child: pw.Image(headerLogoImage!),
+                      child: pw.Image(headerLogoImage),
                       margin: const pw.EdgeInsets.only(bottom: 10),
                     ),
                   ),
@@ -453,7 +698,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                 pw.SizedBox(height: 8),
 
                 // Intro paragraph
-                pw.Text(introText, style: defaultStyle),
+                pw.Text(currentIntroText, style: defaultStyle),
                 pw.SizedBox(height: 8),
 
                 // Contacts table
@@ -511,7 +756,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                 pw.SizedBox(height: 8),
 
                 // Middle paragraph
-                pw.Text(middleText, style: defaultStyle),
+                pw.Text(currentMiddleText, style: defaultStyle),
                 pw.SizedBox(height: 16),
 
                 // Milestones table
@@ -559,19 +804,8 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                 ),
                 pw.SizedBox(height: 16),
 
-                // Legal text
-                pw.Text(
-                  'TIME: Time is of the essence in this Contract. Calendar days, based on where the Property is located, shall be used in computing time periods. Other than time for acceptance and Effective Date as set forth in Paragraph 3, any time periods provided for or dates specified in this Contract, whether preprinted, handwritten, typewritten or inserted herein, which shall end or occur on a Saturday, Sunday, national legal public holiday (as defined in 5 U.S.C. Sec. 6103(a)), or a day on which a national legal public holiday is observed because it fell on a Saturday or Sunday, shall extend to the next calendar day which is not a Saturday, Sunday, national legal public holiday, or a day on which a national legal public holiday is observed.',
-                  style: defaultStyle,
-                ),
-                pw.SizedBox(height: 8),
-
-                // Note paragraph
-                pw.Text(
-                  'Should you find any discrepancies in our timeline, please notify us as soon as possible and we can adjust accordingly.',
-                  style: defaultStyle,
-                ),
-                pw.SizedBox(height: 40),
+                pw.Text(_afterMilestoneController.text, style: defaultStyle),
+                pw.SizedBox(height: 16),
 
                 // Footer
                 pw.Container(
@@ -584,7 +818,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                           height: 60,
                           width: 150,
                           margin: const pw.EdgeInsets.only(right: 20),
-                          child: pw.Image(footerLogoImage!),
+                          child: pw.Image(footerLogoImage),
                         ),
                       pw.Column(
                         crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -724,12 +958,115 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       });
     }
   }
+
+  Widget _buildIntroTextField() {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) {
+          // Save when focus is lost
+          _saveTextBlocks();
+        }
+      },
+      child: TextFormField(
+        controller: _introTextController,
+        maxLines: 5,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+          hintText: 'Click here to edit introduction text...',
+          labelText: 'Introduction Text',
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          fontFamily: 'Helvetica, Arial',
+          color: Colors.black,
+        ),
+        onChanged: (value) {
+          setState(() => introText = value);
+        },
+      ),
+    );
+  }
+
+  Widget _buildMiddleTextField() {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) {
+          // Save when focus is lost
+          _saveTextBlocks();
+        }
+      },
+      child: TextFormField(
+        controller: _middleTextController,
+        maxLines: 5,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+          labelText: 'Middle Content Text',
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          fontFamily: 'Helvetica, Arial',
+          color: Colors.black,
+        ),
+        onChanged: (value) {
+          setState(() => middleText = value);
+        },
+      ),
+    );
+  }
+
+  Widget _buildAfterMilestoneTextField() {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) {
+          _saveTextBlocks();
+        }
+      },
+      child: TextFormField(
+        controller: _afterMilestoneController,
+        maxLines: 5,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: EdgeInsets.zero,
+          labelText: 'After Milestone Text',
+          labelStyle: TextStyle(
+            color: Colors.grey.shade600,
+            fontSize: 14,
+          ),
+        ),
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.normal,
+          fontFamily: 'Helvetica, Arial',
+          color: Colors.black,
+        ),
+        onChanged: (value) {
+          setState(() => afterMilestoneText = value);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isMobile = MediaQuery.of(context).size.width < 600;
     final double horizontalPadding = isMobile ? 16.0 : 100.0;
     final double tableWidth = isMobile ? MediaQuery.of(context).size.width * 0.9 : 600;
-
+    final double headerImageWidth = isMobile ? MediaQuery.of(context).size.width * 0.5 : 350;
+    final double headerImageHeight = 140;
+    final double footerImageWidth = isMobile ? MediaQuery.of(context).size.width * 0.4 : 200;
+    final double footerImageHeight = 80;
     final TextStyle bodyTextStyle = TextStyle(
       fontFamily: 'Helvetica, Arial',
       fontSize: isMobile ? 14 : 16,
@@ -768,18 +1105,71 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header section
+            if (_showUploadSuccess)
+              Container(
+                padding: EdgeInsets.all(12),
+                margin: EdgeInsets.only(top: 20),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Image uploaded successfully!'),
+                      ],
+                    ),
+                    InkWell(
+                      onTap: () {
+                        setState(() => _showUploadSuccess = false);
+                      },
+                      child: Icon(Icons.close, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+
             Container(
               margin: EdgeInsets.only(bottom: 20, top: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (headerLogo.isNotEmpty)
+                  if (_isLoadingImages)
+                    Center(child: CircularProgressIndicator())
+                  else
                     Center(
-                      child: Container(
-                        width: isMobile ? MediaQuery.of(context).size.width * 0.3 : 200,
-                        margin: EdgeInsets.only(bottom: 20),
-                        child: Image.network(headerLogo),
+                      child: Column(
+                        children: [
+                          InkWell(
+                            onTap: () => _pickAndUploadImage(true),
+                            splashColor: Colors.blue.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              width: headerImageWidth,
+                              height: headerImageHeight,
+                              margin: EdgeInsets.only(bottom: 10),
+                              child: _isLoadingImages
+                                  ? Center(child: CircularProgressIndicator()) // Show loading while fetching
+                                  : _headerImageBytes != null
+                                  ? Image.memory(_headerImageBytes!, fit: BoxFit.contain) // Show API image first
+                                  : headerLogo.isNotEmpty
+                                  ? Image.network(headerLogo, fit: BoxFit.contain) // Fallback to GHL logo
+                                  : Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.add_photo_alternate, size: 40),
+                                  Text('Click to add header image'),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Text('Click to change header image',
+                              style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
                       ),
                     ),
                   Text(header['date'] ?? '',
@@ -795,53 +1185,68 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                     children: [
                       Text('Property Address: ',
                           style: TextStyle(fontWeight: FontWeight.bold)),
+                      // Property Address Dropdown
                       Text(
                         header['propertyAddress']?.isEmpty ?? true
                             ? 'Not specified'
                             : header['propertyAddress']!,
                         style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-
-            // Contract selection dropdown - mobile responsive
-            Container(
-              margin: EdgeInsets.only(bottom: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Select Contract:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    isExpanded: true, // Important for mobile
-                    value: selectedOptionValue.isNotEmpty ? selectedOptionValue : null,
-                    decoration: InputDecoration(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      border: OutlineInputBorder(),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    items: dropdownOptions.map((option) {
-                      return DropdownMenuItem<String>(
-                        value: option['value'],
-                        child: Text(
-                          option['label'] ?? '',
-                          style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
-                          overflow: TextOverflow.ellipsis,
+                      SizedBox(height: 16),
+                      Text('Select Contract: ',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      SizedBox(height: 4),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        value: selectedOptionValue.isNotEmpty ? selectedOptionValue : null,
+                        disabledHint: _isLoadingText
+                            ? CircularProgressIndicator()
+                            : Text('Loading options...'),
+                        decoration: InputDecoration(
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.grey.withOpacity(0.3), // Subtle border color
+                              width: 1.0,
+                            ),
+                            borderRadius: BorderRadius.circular(4), // Slightly rounded corners
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.blue.withOpacity(0.5), // Slightly more visible when focused
+                              width: 1.0,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.withOpacity(0.1), // Very subtle background
+                          hintText: 'Select Contract', // Hint text when nothing is selected
                         ),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        selectedOptionValue = value ?? '';
-                      });
-                      onContractSelect();
-                    },
+                        items: dropdownOptions.map((option) {
+                          return DropdownMenuItem<String>(
+                            value: option['value'],
+                            child: Text(
+                              option['label'] ?? '',
+                              style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedOptionValue = value ?? '';
+                          });
+                          onContractSelect();
+                        },
+                      ),
+                      SizedBox(height: 8),
+                      // Text(
+                      //   header['propertyAddress']?.isEmpty ?? true
+                      //       ? 'Not specified'
+                      //       : header['propertyAddress']!,
+                      //   style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
+                      // ),
+                    ],
                   ),
                 ],
               ),
@@ -860,18 +1265,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: TextFormField(
-                  initialValue: introText,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    labelText: 'Introduction Text',
-                    labelStyle: TextStyle(color: Colors.grey.shade600),
-                  ),
-                  style: textAreaTextStyle,
-                  onChanged: (value) => setState(() => introText = value),
-                ),
+                child: _buildIntroTextField(),
               ),
             ),
             Card(
@@ -1038,18 +1432,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: TextFormField(
-                  initialValue: middleText,
-                  maxLines: 5,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    labelText: 'Middle Content Text',
-                    labelStyle: TextStyle(color: Colors.grey.shade600),
-                  ),
-                  style: textAreaTextStyle,
-                  onChanged: (value) => setState(() => middleText = value),
-                ),
+                child: _buildMiddleTextField(),
               ),
             ),
 
@@ -1168,6 +1551,8 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                                   // Editable Date Field
                                   Padding(
                                     padding: EdgeInsets.all(isMobile ? 6 : 8),
+                                    child: SizedBox(
+                                    height: 48,
                                     child: InkWell(
                                       onTap: () => _selectDate(context, index),
                                       child: AbsorbPointer(
@@ -1189,16 +1574,22 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                                       ),
                                     ),
                                   ),
+                                  ),
 
                                   // Delete Button
                                   Padding(
                                     padding: EdgeInsets.all(isMobile ? 6 : 8),
+                                    child: SizedBox(
+                                    width: 48,
+                                    height: 48,
                                     child: IconButton(
+                                      iconSize: 24,
                                       icon: Icon(Icons.delete,
                                           size: isMobile ? 18 : 20,
                                           color: Colors.red),
                                       onPressed: () => deleteMilestone(index),
                                     ),
+                                  ),
                                   ),
                                 ],
                               );
@@ -1211,6 +1602,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                 ),
               ),
             ),
+
             // Legal text
             Card(
               elevation: 2,
@@ -1224,20 +1616,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   border: Border.all(color: Colors.grey.shade300),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'TIME: Time is of the essence in this Contract. Calendar days, based on where the Property is located, shall be used in computing time periods. Other than time for acceptance and Effective Date as set forth in Paragraph 3, any time periods provided for or dates specified in this Contract, whether preprinted, handwritten, typewritten or inserted herein, which shall end or occur on a Saturday, Sunday, national legal public holiday (as defined in 5 U.S.C. Sec. 6103(a)), or a day on which a national legal public holiday is observed because it fell on a Saturday or Sunday, shall extend to the next calendar day which is not a Saturday, Sunday, national legal public holiday, or a day on which a national legal public holiday is observed.',
-                      style: textAreaTextStyle,
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Should you find any discrepancies in our timeline, please notify us as soon as possible and we can adjust accordingly.',
-                      style: textAreaTextStyle,
-                    ),
-                  ],
-                ),
+                child: _buildAfterMilestoneTextField(),
               ),
             ),
 
@@ -1258,12 +1637,63 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    if (footerLogo.isNotEmpty)
-                      Container(
-                        margin: EdgeInsets.only(right: isMobile ? 20 : 120),
-                        constraints: BoxConstraints(maxHeight: isMobile ? 40 : 60),
-                        child: Image.network(footerLogo),
-                      ),
+                    Column(
+                      children: [
+                        InkWell(
+                          onTap: () => _pickAndUploadImage(false),
+                          child: Container(
+                            width: footerImageWidth,
+                            height: footerImageHeight,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: _isLoadingFooterImage
+                                ? Center(child: CircularProgressIndicator())
+                                : _footerImageBytes != null
+                                ? Image.memory(
+                              _footerImageBytes!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                print('Error displaying memory image: $error');
+                                return Icon(Icons.error);
+                              },
+                            )
+                                : footerLogo.isNotEmpty
+                                ? Image.network(
+                              footerLogo,
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
+                              errorBuilder: (context, error, stackTrace) {
+                                print('Error loading network image: $error');
+                                return Icon(Icons.error);
+                              },
+                            )
+                                : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate, size: 30, color: Colors.grey),
+                                Text('Add footer image', style: TextStyle(fontSize: 10)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text('Click to change footer',
+                            style: TextStyle(fontSize: 10, color: Colors.grey)),
+                      ],
+                    ),
+                    SizedBox(width: 16),
                     Flexible(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -1298,6 +1728,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
             Container(
               padding: EdgeInsets.only(bottom: 20),
               child: ElevatedButton(
+
                 onPressed: generatePDF,
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -1323,4 +1754,4 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
       ),
     );
   }
-}
+  }

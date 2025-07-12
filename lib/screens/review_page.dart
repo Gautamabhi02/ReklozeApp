@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:flutter_reta/screens/submit_page.dart';
 import 'package:intl/intl.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:rekloze/screens/submit_page.dart';
 import '../api/ApplynxService.dart';
 import 'package:pdfx/pdfx.dart';
 
@@ -33,8 +37,9 @@ class ReviewPage extends StatefulWidget {
 
 class _ReviewPageState extends State<ReviewPage> {
   String? pdfUrl;
-  late PdfControllerPinch pdfController;
+  late PdfController pdfController;
   bool _isPdfReady = false;
+  String? _tempPdfPath;
   String selectedContractType = 'Select';
   Map<String, DateTime?> dateFields = {
     'Effective Date': null,
@@ -120,7 +125,9 @@ class _ReviewPageState extends State<ReviewPage> {
   @override
   void initState() {
     super.initState();
+    debugPrint('PDF file received: ${widget.pdfFile?.lengthInBytes ?? 0} bytes');
     _initializeData();
+    _loadPdf();
   }
 
   @override
@@ -139,32 +146,84 @@ class _ReviewPageState extends State<ReviewPage> {
   //   _processContractData();
   // }
   void _initializeData() {
-    if (widget.pdfFile != null) {
-      _loadPdf();
-    }
-    _processContractData();
+    _processContractData(); // Only process contract data
   }
 
-  Future<void> _loadPdf() async {
+
+  void _loadPdf() async {
+    if (widget.pdfFile == null || widget.pdfFile!.isEmpty) {
+      debugPrint('PDF file is null or empty');
+      setState(() => _isPdfReady = false);
+      return;
+    }
+
     try {
-      pdfController = PdfControllerPinch(
-        document: PdfDocument.openData(widget.pdfFile!),
-      );
-      setState(() {
-        _isPdfReady = true;
-      });
-    } catch (e) {
+      if (kIsWeb) {
+        // Web implementation
+        pdfController = PdfController(
+          document: PdfDocument.openData(widget.pdfFile!),
+        );
+        setState(() => _isPdfReady = true);
+      } else {
+        // Android implementation
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/contract_review.pdf');
+        await file.writeAsBytes(widget.pdfFile!, flush: true); // Add flush
+
+        if (!await file.exists()) {
+          debugPrint('Failed to create temp file');
+          setState(() => _isPdfReady = false);
+          return;
+        }
+
+        pdfController = PdfController(
+          document: PdfDocument.openFile(file.path),
+        );
+        setState(() {
+          _isPdfReady = true;
+          _tempPdfPath = file.path;
+        });
+      }
+    } catch (e, stack) {
       debugPrint('Error loading PDF: $e');
-      setState(() {
-        _isPdfReady = false;
-      });
+      debugPrint('Stack trace: $stack');
+      setState(() => _isPdfReady = false);
+      _showPdfFallbackDialog();
     }
   }
 
+  void _showPdfFallbackDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("PDF Rendering Issue"),
+        content: Text("Couldn't load PDF preview. Showing raw data instead."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("OK"),
+          )
+        ],
+      ),
+    );
+  }
 
   @override
   void dispose() {
     pdfController.dispose();
+
+    // Clean up temp file if it exists
+    if (_tempPdfPath != null) {
+      try {
+        final file = File(_tempPdfPath!);
+        if (file.existsSync()) {
+          file.deleteSync();
+        }
+      } catch (e) {
+        debugPrint('Error deleting temp file: $e');
+      }
+    }
+
     super.dispose();
   }
 
@@ -408,18 +467,13 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   void _validateFields() {
-    firstNameError = newFirstName
-        .trim()
-        .isEmpty;
-    lastNameError = newLastName
-        .trim()
-        .isEmpty;
-    emailError = newEmail
-        .trim()
-        .isEmpty || !_validateEmail(newEmail);
-    buyerNameError = buyerNames.isEmpty || buyerNames[0]
-        .trim()
-        .isEmpty;
+    lastNameError = newLastName.trim().isEmpty;
+    emailError = newEmail.trim().isEmpty || !_validateEmail(newEmail);
+    buyerNameError = buyerNames.isEmpty || buyerNames[0].trim().isEmpty;
+
+    firstNameTouched = true;
+    lastNameTouched = true;
+    emailTouched = true;
   }
 
   bool _validateEmail(String email) {
@@ -454,27 +508,34 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   void _selectDate(BuildContext context, String label) async {
-    final currentDate = dateFields[label] ?? DateTime.now();
-    DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: currentDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
+    try {
+      final currentDate = dateFields[label] ?? DateTime.now();
+      DateTime? pickedDate = await showDatePicker(
+        context: context,
+        initialDate: currentDate,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2100),
+      );
 
-    if (pickedDate != null) {
-      setState(() {
-        dateFields[label] = pickedDate;
-        manuallySetDates[label] = true;
-      });
+      if (pickedDate != null && mounted) {
+        setState(() {
+          dateFields[label] = pickedDate;
+          manuallySetDates[label] = true;
+        });
 
-      // Recalculate dependents when either base date changes
-      if (label == 'Effective Date' || label == 'Closing Date') {
-        _calculateRelativeDates();
+        // Recalculate dependents when either base date changes
+        if (label == 'Effective Date' || label == 'Closing Date') {
+          _calculateRelativeDates();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to select date: $e')),
+        );
       }
     }
   }
-
   int? _extractDaysOffset(String text) {
     if (text.isEmpty) return null;
 
@@ -550,7 +611,7 @@ class _ReviewPageState extends State<ReviewPage> {
       progress = 0;
       processingErrors = [];
     });
-
+    await Future.delayed(Duration(milliseconds: 100));
     try {
       // final lastContractResponse = await apiService.getLastContractNumber();
       // String lastContractStr;
@@ -953,27 +1014,48 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   Widget _buildPdfViewer() {
+    if (!_isPdfReady) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 20),
+            Text('Loading PDF...'),
+            if (_tempPdfPath != null)
+              TextButton(
+                onPressed: () async {
+                  // Try to open the PDF in an external viewer
+                  try {
+                    await OpenFile.open(_tempPdfPath!);
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not open PDF: $e')),
+                    );
+                  }
+                },
+                child: Text('Open in PDF Viewer'),
+              ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey.shade300),
         borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 2,
-            blurRadius: 5,
-            offset: Offset(0, 3),
-          ),
-        ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: _isPdfReady
-            ? PdfViewPinch(
-          controller: pdfController,
-          scrollDirection: Axis.vertical,
-        )
-            : Center(child: CircularProgressIndicator()),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
+      ),
+      child: PdfView(
+        controller: pdfController,
+        scrollDirection: Axis.vertical,
+        renderer: (PdfPage page) => page.render(
+          width: page.width * 2,
+          height: page.height * 2,
+        ),
       ),
     );
   }
