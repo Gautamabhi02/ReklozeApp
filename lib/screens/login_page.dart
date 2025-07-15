@@ -31,31 +31,21 @@ class _LoginPageState extends State<LoginPage> {
         );
         if (response == null) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Server unreachable or slow network. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return; // Important to exit if response is null
-        }
-        if (response != null && response['token'] != null) {
-          // Store the token securely
+          _showTopPopup('Server unreachable or slow network.', Colors.red);
+        } else if (response.containsKey('error')) {
+          if (!mounted) return;
+          _showTopPopup('Invalid username or password.', Colors.orange);
+        } else if (response['token'] != null) {
+          // proceed with login
           await UserSessionService().setAuthToken(response['token']);
-
           final userData = UserSessionService().decodeToken(response['token']);
-
           await UserSessionService().setUserData(userData);
           if (!mounted) return;
           _navigateBasedOnUserStatus(userData);
-        } else {
+        }
+        else {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid credentials or no token received'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showTopPopup('Unexpected error occurred.', Colors.red);
         }
       } catch (e) {
         if (!mounted) return;
@@ -72,7 +62,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
   }
-
+  
   void _navigateBasedOnUserStatus(Map<String, dynamic> userData) {
     final paymentStatus = userData['paymentStatus']?.toString().toLowerCase();
     final route = paymentStatus == 'success'
@@ -84,6 +74,40 @@ class _LoginPageState extends State<LoginPage> {
       MaterialPageRoute(builder: (context) => route),
           (route) => false,
     );
+  }
+  void _showTopPopup(String message, Color color) {
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        top: 50,
+        left: 20,
+        right: 20,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                )
+              ],
+            ),
+            child: Text(
+              message,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(seconds: 3)).then((_) => overlayEntry.remove());
   }
 
   @override

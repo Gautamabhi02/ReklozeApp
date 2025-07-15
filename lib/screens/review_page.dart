@@ -40,6 +40,7 @@ class _ReviewPageState extends State<ReviewPage> {
   late PdfController pdfController;
   bool _isPdfReady = false;
   String? _tempPdfPath;
+  bool _showError = false;
   String selectedContractType = 'Select';
   Map<String, DateTime?> dateFields = {
     'Effective Date': null,
@@ -165,20 +166,17 @@ class _ReviewPageState extends State<ReviewPage> {
         );
         setState(() => _isPdfReady = true);
       } else {
-        // Android implementation
+        // Android implementation - SIMPLIFIED
         final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/contract_review.pdf');
-        await file.writeAsBytes(widget.pdfFile!, flush: true); // Add flush
+        final file = File('${dir.path}/contract_review_${DateTime.now().millisecondsSinceEpoch}.pdf');
 
-        if (!await file.exists()) {
-          debugPrint('Failed to create temp file');
-          setState(() => _isPdfReady = false);
-          return;
-        }
+        await file.writeAsBytes(widget.pdfFile!, flush: true);
+        debugPrint('PDF saved to: ${file.path}');
 
         pdfController = PdfController(
           document: PdfDocument.openFile(file.path),
         );
+
         setState(() {
           _isPdfReady = true;
           _tempPdfPath = file.path;
@@ -187,11 +185,21 @@ class _ReviewPageState extends State<ReviewPage> {
     } catch (e, stack) {
       debugPrint('Error loading PDF: $e');
       debugPrint('Stack trace: $stack');
-      setState(() => _isPdfReady = false);
-      _showPdfFallbackDialog();
+      setState(() {
+        _isPdfReady = false;
+        _showError = true;
+      });
+
+      // Fallback to external viewer
+      if (_tempPdfPath != null) {
+        try {
+          await OpenFile.open(_tempPdfPath!);
+        } catch (e) {
+          debugPrint('Failed to open in external viewer: $e');
+        }
+      }
     }
   }
-
   void _showPdfFallbackDialog() {
     showDialog(
       context: context,
@@ -1013,29 +1021,43 @@ class _ReviewPageState extends State<ReviewPage> {
     }).toList();
   }
 
+
   Widget _buildPdfViewer() {
+    if (_showError) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error, color: Colors.red, size: 50),
+            SizedBox(height: 16),
+            Text('Failed to load PDF preview'),
+            if (_tempPdfPath != null) ...[
+              SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => OpenFile.open(_tempPdfPath!),
+                child: Text('Open in External Viewer'),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
     if (!_isPdfReady) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(),
-            SizedBox(height: 20),
+            SizedBox(height: 16),
             Text('Loading PDF...'),
-            if (_tempPdfPath != null)
+            if (_tempPdfPath != null) ...[
+              SizedBox(height: 16),
               TextButton(
-                onPressed: () async {
-                  // Try to open the PDF in an external viewer
-                  try {
-                    await OpenFile.open(_tempPdfPath!);
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not open PDF: $e')),
-                    );
-                  }
-                },
-                child: Text('Open in PDF Viewer'),
+                onPressed: () => OpenFile.open(_tempPdfPath!),
+                child: Text('Try opening externally'),
               ),
+            ],
           ],
         ),
       );
@@ -1049,13 +1071,10 @@ class _ReviewPageState extends State<ReviewPage> {
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.6,
       ),
+      // CRITICAL FIX: Removed builders parameter
       child: PdfView(
         controller: pdfController,
         scrollDirection: Axis.vertical,
-        renderer: (PdfPage page) => page.render(
-          width: page.width * 2,
-          height: page.height * 2,
-        ),
       ),
     );
   }

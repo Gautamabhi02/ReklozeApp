@@ -53,7 +53,11 @@ class ApiService {
           return data;
         }
         return null;
-      } else {
+      }
+      else if (response.statusCode == 401) {
+        return {'error': 'Invalid credentials'};
+      }
+      else {
         print('Login Failed: ${response.body}');
         return null;
       }
@@ -81,7 +85,6 @@ class ApiService {
         throw Exception("No file bytes or path available.");
       }
 
-      // ✅ Encode prompt as query string
       final uri = Uri.parse('${Env.baseUrl}/AIOcr/getTextfromChatgpt')
           .replace(queryParameters: {'prompt': promptText});
 

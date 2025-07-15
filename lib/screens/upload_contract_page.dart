@@ -36,6 +36,7 @@ class _UploadContractPageState extends State<UploadContractPage> {
         firstDate: DateTime(2000),
         lastDate: DateTime(2100),
       );
+      if (_isUploading) return;
 
       if (picked != null && picked != _selectedDate) {
         setState(() {
@@ -51,48 +52,63 @@ class _UploadContractPageState extends State<UploadContractPage> {
 
   void _pickFile() async {
     try {
+      if (_isUploading) return;
+
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        withData: true, // Ensure we get file bytes
       );
 
-      if (result != null && result.files.isNotEmpty) {
-        setState(() => _selectedFile = result.files.first);
+      if (result == null || result.files.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("No file selected")),
+        );
+        return;
+      }
 
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.green),
-                SizedBox(width: 10),
-                Text("File Uploaded", style: TextStyle(color: Colors.black)),
-              ],
-            ),
-            content: const Text("Your PDF file was uploaded successfully."),
-            actions: [
-              TextButton(
-                style: TextButton.styleFrom(foregroundColor: Colors.indigo),
-                onPressed: () => Navigator.pop(context),
-                child: const Text("OK"),
-              ),
+      final file = result.files.first;
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("File too large (max 10MB)")),
+        );
+        return;
+      }
+
+      if (file.bytes == null || file.bytes!.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Could not read file contents")),
+        );
+        return;
+      }
+
+      setState(() => _selectedFile = file);
+
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              SizedBox(width: 10),
+              Text("File Uploaded"),
             ],
           ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("File selection canceled.")),
-        );
-      }
+          content: Text("${file.name} was uploaded successfully (${(file.size / 1024 / 1024).toStringAsFixed(2)} MB)"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error selecting file: $e")),
+        SnackBar(content: Text("Error selecting file: ${e.toString()}")),
       );
     }
   }
-
   // void _pickFile() async {
   //
   //   final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf']);
@@ -228,7 +244,12 @@ class _UploadContractPageState extends State<UploadContractPage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a file")));
       return;
     }
-
+    if (!_isValidPdf(_selectedFile!.bytes!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Invalid PDF file. Please select a valid PDF.")),
+      );
+      return;
+    }
     setState(() => _isUploading = true);
     // await _simulateUploadProgress();
 
@@ -297,7 +318,16 @@ class _UploadContractPageState extends State<UploadContractPage> {
     }
   }
 
-
+  bool _isValidPdf(Uint8List bytes) {
+    // Check for PDF magic number
+    if (bytes.length >= 4) {
+      return bytes[0] == 0x25 && // %
+          bytes[1] == 0x50 && // P
+          bytes[2] == 0x44 && // D
+          bytes[3] == 0x46;   // F
+    }
+    return false;
+  }
   Map<String, String> parseTextToJson(String responseText) {
     final Map<String, String> data = {};
 
@@ -452,7 +482,7 @@ class _UploadContractPageState extends State<UploadContractPage> {
             OutlinedButton.icon(
               icon: const Icon(Icons.upload_file, color: Colors.white),
               label: const Text("Choose PDF", style: TextStyle(color: Colors.white)),
-              onPressed: _pickFile,
+              onPressed: _isUploading ? null : _pickFile,
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Colors.white),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -549,7 +579,7 @@ class _UploadContractPageState extends State<UploadContractPage> {
         ),
         const SizedBox(height: 12),
         InkWell(
-          onTap: () => _selectDate(context),
+          onTap: _isUploading ? null : () => _selectDate(context),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
