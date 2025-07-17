@@ -9,18 +9,20 @@ import 'screens/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  String? token;
   try {
     await UserSessionService().initialize();
+     token = UserSessionService().token;
   } catch (e) {
     debugPrint('Initialization error: $e');
   }
 
-  runApp(const MyApp());
+  runApp(MyApp(initialRoute: (token != null) ? '/contract' : '/loginPage'));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialRoute;
+  const MyApp({super.key, required this.initialRoute});
 
   // This widget is the root of your application.
   @override

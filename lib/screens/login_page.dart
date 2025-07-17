@@ -69,11 +69,8 @@ class _LoginPageState extends State<LoginPage> {
         ? const UploadContractPage()
         : const HomePage();
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => route),
-          (route) => false,
-    );
+    Navigator.pushNamedAndRemoveUntil(context, '/contract', (route) => false);
+
   }
   void _showTopPopup(String message, Color color) {
     final overlay = Overlay.of(context);
