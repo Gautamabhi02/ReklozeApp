@@ -89,6 +89,15 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
     header['date'] = _getTodayDate();
     _initializeEmptyMilestones();
     _initializeEmptyContactDetails();
+    fetchOpportunityValue().then((_) {
+      // Auto-select first contract if available
+      if (dropdownOptions.isNotEmpty) {
+        setState(() {
+          selectedOptionValue = dropdownOptions.first['value'] ?? '';
+        });
+        onContractSelect(); // Load the contract data
+      }
+    });
     _loadSavedTextBlocks().then((_) {
       // Update controllers after text is loaded
       // _propertyAddressController.text = header['propertyAddress'] ?? '';
@@ -1199,44 +1208,30 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         value: selectedOptionValue.isNotEmpty ? selectedOptionValue : null,
-                        disabledHint: _isLoadingText
-                            ? CircularProgressIndicator()
-                            : Text('Loading options...'),
                         decoration: InputDecoration(
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           enabledBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: Colors.grey.withOpacity(0.3), // Subtle border color
-                              width: 1.0,
-                            ),
-                            borderRadius: BorderRadius.circular(4), // Slightly rounded corners
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(
-                              color: Colors.blue.withOpacity(0.5), // Slightly more visible when focused
-                              width: 1.0,
-                            ),
+                            borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           filled: true,
-                          fillColor: Colors.grey.withOpacity(0.1), // Very subtle background
-                          hintText: 'Select Contract', // Hint text when nothing is selected
+                          fillColor: Colors.grey.withOpacity(0.1),
+                          hintText: dropdownOptions.isEmpty ? 'Loading contracts...' : 'Select Contract',
                         ),
                         items: dropdownOptions.map((option) {
                           return DropdownMenuItem<String>(
                             value: option['value'],
                             child: Text(
                               option['label'] ?? '',
-                              style: bodyTextStyle.copyWith(fontSize: isMobile ? 14 : 16),
                               overflow: TextOverflow.ellipsis,
                             ),
                           );
                         }).toList(),
                         onChanged: (value) {
-                          setState(() {
-                            selectedOptionValue = value ?? '';
-                          });
-                          onContractSelect();
+                          if (value != null) {
+                            setState(() => selectedOptionValue = value);
+                            onContractSelect();
+                          }
                         },
                       ),
                       SizedBox(height: 8),

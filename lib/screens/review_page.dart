@@ -126,7 +126,8 @@ class _ReviewPageState extends State<ReviewPage> {
   @override
   void initState() {
     super.initState();
-    debugPrint('PDF file received: ${widget.pdfFile?.lengthInBytes ?? 0} bytes');
+    debugPrint(
+        'PDF file received: ${widget.pdfFile?.lengthInBytes ?? 0} bytes');
     _initializeData();
     _loadPdf();
   }
@@ -168,7 +169,9 @@ class _ReviewPageState extends State<ReviewPage> {
       } else {
         // Android implementation - SIMPLIFIED
         final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/contract_review_${DateTime.now().millisecondsSinceEpoch}.pdf');
+        final file = File('${dir.path}/contract_review_${DateTime
+            .now()
+            .millisecondsSinceEpoch}.pdf');
 
         await file.writeAsBytes(widget.pdfFile!, flush: true);
         debugPrint('PDF saved to: ${file.path}');
@@ -200,19 +203,22 @@ class _ReviewPageState extends State<ReviewPage> {
       }
     }
   }
+
   void _showPdfFallbackDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("PDF Rendering Issue"),
-        content: Text("Couldn't load PDF preview. Showing raw data instead."),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("OK"),
-          )
-        ],
-      ),
+      builder: (context) =>
+          AlertDialog(
+            title: Text("PDF Rendering Issue"),
+            content: Text(
+                "Couldn't load PDF preview. Showing raw data instead."),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text("OK"),
+              )
+            ],
+          ),
     );
   }
 
@@ -284,8 +290,6 @@ class _ReviewPageState extends State<ReviewPage> {
     sellerName = sellerName.replaceFirst(RegExp(r'^-\s*'), '').trim();
     buyerName = widget.contractData['Buyer']?.toString() ?? '';
     buyerName = buyerName.replaceFirst(RegExp(r'^-\s*'), '').trim();
-
-
 
 
     _extractAdditionalInfo();
@@ -475,9 +479,15 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   void _validateFields() {
-    lastNameError = newLastName.trim().isEmpty;
-    emailError = newEmail.trim().isEmpty || !_validateEmail(newEmail);
-    buyerNameError = buyerNames.isEmpty || buyerNames[0].trim().isEmpty;
+    lastNameError = newLastName
+        .trim()
+        .isEmpty;
+    emailError = newEmail
+        .trim()
+        .isEmpty || !_validateEmail(newEmail);
+    buyerNameError = buyerNames.isEmpty || buyerNames[0]
+        .trim()
+        .isEmpty;
 
     firstNameTouched = true;
     lastNameTouched = true;
@@ -544,6 +554,7 @@ class _ReviewPageState extends State<ReviewPage> {
       }
     }
   }
+
   int? _extractDaysOffset(String text) {
     if (text.isEmpty) return null;
 
@@ -1022,6 +1033,8 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
 
+  bool _isFullScreen = false;
+
   Widget _buildPdfViewer() {
     if (_showError) {
       return Center(
@@ -1065,16 +1078,46 @@ class _ReviewPageState extends State<ReviewPage> {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
+        border: _isFullScreen ? null : Border.all(color: Colors.grey.shade300),
+        borderRadius: _isFullScreen ? null : BorderRadius.circular(8),
       ),
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.6,
+        maxHeight: _isFullScreen
+            ? MediaQuery
+            .of(context)
+            .size
+            .height
+            : MediaQuery
+            .of(context)
+            .size
+            .height * 0.6,
       ),
-      // CRITICAL FIX: Removed builders parameter
-      child: PdfView(
-        controller: pdfController,
-        scrollDirection: Axis.vertical,
+      child: Stack(
+        children: [
+          PdfView(
+            controller: pdfController,
+            scrollDirection: Axis.vertical,
+          ),
+          if (_isFullScreen)
+            Positioned(
+              top: 16,
+              left: 16,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.indigo,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                // child: IconButton(
+                //   icon: Icon(Icons.arrow_back, color: Colors.white),
+                //   onPressed: () {
+                //     setState(() {
+                //       _isFullScreen = false;
+                //     });
+                //   },
+                // ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -1487,7 +1530,21 @@ class _ReviewPageState extends State<ReviewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: _isFullScreen
+          ? AppBar(
+        title: Text('Contract Preview'),
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () {
+            setState(() {
+              _isFullScreen = false;
+            });
+          },
+        ),
+      )
+          : AppBar(
         title: Text('Contract Preview'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
@@ -1496,7 +1553,9 @@ class _ReviewPageState extends State<ReviewPage> {
           onPressed: widget.onGoBack,
         ),
       ),
-      body: Padding(
+      body: _isFullScreen
+          ? _buildPdfViewer()
+          : Padding(
         padding: EdgeInsets.all(16.0),
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -1504,7 +1563,6 @@ class _ReviewPageState extends State<ReviewPage> {
               // Web layout - side by side
               return Column(
                 children: [
-                  // Add progress bar at the top
                   ContractProgressBar(currentStep: 2),
                   SizedBox(height: 20),
                   Expanded(
@@ -1514,7 +1572,14 @@ class _ReviewPageState extends State<ReviewPage> {
                         // PDF Viewer (left side)
                         Expanded(
                           flex: 1,
-                          child: _buildPdfViewer(),
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _isFullScreen = true;
+                              });
+                            },
+                            child: _buildPdfViewer(),
+                          ),
                         ),
                         SizedBox(width: 20),
                         // Form (right side)
@@ -1534,16 +1599,22 @@ class _ReviewPageState extends State<ReviewPage> {
               return SingleChildScrollView(
                 child: Column(
                   children: [
-                    // Add progress bar at the top
                     ContractProgressBar(currentStep: 2),
                     SizedBox(height: 20),
                     // PDF Viewer (top)
-                    Container(
-                      height: MediaQuery
-                          .of(context)
-                          .size
-                          .height * 0.4,
-                      child: _buildPdfViewer(),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isFullScreen = true;
+                        });
+                      },
+                      child: Container(
+                        height: MediaQuery
+                            .of(context)
+                            .size
+                            .height * 0.4,
+                        child: _buildPdfViewer(),
+                      ),
                     ),
                     SizedBox(height: 20),
                     // Form (bottom)

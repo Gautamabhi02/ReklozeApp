@@ -150,4 +150,52 @@ class ApiApplynxService {
       throw Exception('Network error: $e');
     }
   }
+
+// Add to your ApiApplynxService class
+  Future<Map<String, dynamic>> fetchOpportunityDates(String opportunityId) async {
+    if (opportunityId.isEmpty) {
+      throw Exception('Opportunity ID cannot be empty');
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/opportunities/$opportunityId'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $apiKey',
+          'Version': '2021-07-28',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Process the opportunity data
+        final opportunity = data['opportunity'];
+        final customFields = opportunity['customFields'] as List? ?? [];
+
+        // Extract all dates from custom fields
+        final dates = <String, String>{};
+        for (final field in customFields) {
+          if (field['fieldValue'] != null) {
+            dates[field['id']] = field['fieldValue'].toString();
+          }
+        }
+
+        // Extract contact information
+        final contact = opportunity['contact'] ?? {};
+
+        return {
+          'dates': dates,
+          'contact': contact,
+          'opportunity': opportunity,
+        };
+      } else {
+        throw Exception('Failed to load opportunity data: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to fetch opportunity details: $e');
+    }
+  }
+
 }
