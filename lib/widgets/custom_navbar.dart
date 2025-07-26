@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../service/user_session_service.dart';
 
 class CustomNavbar extends StatelessWidget {
   const CustomNavbar({super.key});
@@ -9,6 +10,13 @@ class CustomNavbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final session = UserSessionService();
+
+    final username = session.username?.isNotEmpty==true ? session.username
+        :'Add username here';
+    final email = session.email?.isNotEmpty==true ? session.email
+        :'Add email here';
+
     return Drawer(
       child: Column(
         children: [
@@ -16,8 +24,8 @@ class CustomNavbar extends StatelessWidget {
             children: [
               UserAccountsDrawerHeader(
                 decoration: const BoxDecoration(color: Colors.blue),
-                accountName: const Text("John Doe"),
-                accountEmail: const Text("john.doe@Rekloze.com"),
+                accountName:  Text(username ?? ''),
+                accountEmail: Text(email ?? ''),
                 currentAccountPicture: const CircleAvatar(
                   backgroundColor: Colors.white,
                   child: Icon(Icons.person, size: 40, color: Colors.blue),
@@ -43,12 +51,12 @@ class CustomNavbar extends StatelessWidget {
                 ),
                 ListTile(
                   leading: const Icon(Icons.upload_file),
-                  title: const Text('Upload Contract'),
+                  title: const Text('Upload'),
                   onTap: () => _navigateTo(context, '/contract'),
                 ),
                 ListTile(
                   leading: const Icon(Icons.edit_document),
-                  title: const Text('Timeline Contract'),
+                  title: const Text('Timelines'),
                   onTap: () => _navigateTo(context, '/editContractTimeline'),
                 ),
                 ListTile(

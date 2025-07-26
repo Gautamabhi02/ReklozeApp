@@ -402,7 +402,7 @@ class _UploadContractPageState extends State<UploadContractPage> {
             OutlinedButton.icon(
               icon: const Icon(Icons.upload_file, color: Colors.white),
               label: const Text(
-                "Choose PDF",
+                "Upload Contract",
                 style: TextStyle(color: Colors.white),
               ),
               onPressed: _isUploading ? null : _pickFile,

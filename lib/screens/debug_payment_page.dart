@@ -1,113 +1,99 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../service/user_session_service.dart';
 import 'upload_contract_page.dart';
 import '../api/payment_api.dart';
 import '../models/userPaymentModel.dart';
 
 
-class DebugPaymentPage  extends StatefulWidget {
-  final String planName;
-  const DebugPaymentPage ({super.key, required this.planName});
+final paymentStateProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((ref) {
+  return PaymentNotifier();
+});
 
-  @override
-  State<DebugPaymentPage> createState() => _DebugPaymentPageState();
+class PaymentState {
+  final bool isProcessing;
+  final int secondsLeft;
+  final String? error;
+
+  PaymentState({
+    this.isProcessing = false,
+    this.secondsLeft = 5,
+    this.error,
+  });
 }
 
-class _DebugPaymentPageState  extends State<DebugPaymentPage> {
-  final TextEditingController _upiController = TextEditingController();
-  bool isProcessing = false;
-  int secondsLeft = 5;
-  Timer? _timer;
+class PaymentNotifier extends StateNotifier<PaymentState> {
+  PaymentNotifier() : super(PaymentState());
 
-  Future<void> _startPayment() async {
-    if (_upiController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid UPI ID')),
-      );
-      return;
-    }
+  Future<void> startPayment({
+    required String upiId,
+    required String planName,
+    required BuildContext context,
+  }) async {
+    state = PaymentState(isProcessing: true, secondsLeft: 5);
 
-    setState(() => isProcessing = true);
-
-    // SharedPreferences prefs = await SharedPreferences.getInstance();
-    // int? userId = prefs.getInt('userId');
-
-    var userService = UserSessionService();
-    int? userId = userService.userId;
-    print(userService.userId);
-    print(userService.username);
-    print(userService.email);
-    print(userService.isActive);
+    final userService = UserSessionService();
+    final userId = userService.userId;
 
     if (userId == null) {
+      state = PaymentState(error: "User not logged in");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("User not logged in")),
       );
       return;
     }
-    double amount = 199.00;
-    String transactionId = "TXN${Random().nextInt(999999)}";
 
-    UserPaymentModel paymentModel = UserPaymentModel(
+    final paymentModel = UserPaymentModel(
       userId: userId,
-      planName: widget.planName,
+      planName: planName,
       paymentStatus: "Success",
-      amount: amount,
-      transactionId: transactionId,
+      amount: 199.00,
+      transactionId: "TXN${Random().nextInt(999999)}",
     );
 
-    // ✅ Call API
-    bool success = await ApiService().submitUserPayment(paymentModel);
+    final success = await ApiService().submitUserPayment(paymentModel);
 
-    if (success) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (secondsLeft == 0) {
-          timer.cancel();
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const UploadContractPage()),
-          );
-        } else {
-          setState(() {
-            secondsLeft--;
-          });
-        }
-      });
-    } else {
-      setState(() => isProcessing = false);
+    if (!success) {
+      state = PaymentState(error: "Payment failed");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Payment failed.")),
       );
+      return;
     }
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (secondsLeft == 0) {
+    Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (state.secondsLeft == 0) {
         timer.cancel();
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const UploadContractPage()),
         );
       } else {
-        setState(() {
-          secondsLeft--;
-        });
+        state = PaymentState(
+          isProcessing: true,
+          secondsLeft: state.secondsLeft - 1,
+        );
       }
     });
   }
+}
+
+
+class DebugPaymentPage extends HookConsumerWidget {
+  final String planName;
+  const DebugPaymentPage({super.key, required this.planName});
 
   @override
-  void dispose() {
-    _timer?.cancel();
-    _upiController.dispose();
-    super.dispose();
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final upiController = useTextEditingController();
+    final state = ref.watch(paymentStateProvider);
+    final notifier = ref.read(paymentStateProvider.notifier);
 
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
@@ -122,14 +108,14 @@ class _DebugPaymentPageState  extends State<DebugPaymentPage> {
             constraints: const BoxConstraints(maxWidth: 500),
             child: Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 3, // lowered elevation
+              elevation: 3,
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Text(
-                      "Pay for ${widget.planName}",
+                      "Pay for $planName",
                       style: const TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -150,7 +136,7 @@ class _DebugPaymentPageState  extends State<DebugPaymentPage> {
                     ),
                     const SizedBox(height: 10),
                     TextField(
-                      controller: _upiController,
+                      controller: upiController,
                       decoration: InputDecoration(
                         labelText: "Enter your UPI ID",
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -160,13 +146,13 @@ class _DebugPaymentPageState  extends State<DebugPaymentPage> {
                       keyboardType: TextInputType.emailAddress,
                     ),
                     const SizedBox(height: 24),
-                    isProcessing
+                    state.isProcessing
                         ? Column(
                       children: [
                         const CircularProgressIndicator(color: Colors.deepPurple),
                         const SizedBox(height: 12),
                         Text(
-                          "Processing in $secondsLeft sec...",
+                          "Processing in ${state.secondsLeft} sec...",
                           style: const TextStyle(color: Colors.black54),
                         ),
                       ],
@@ -182,7 +168,19 @@ class _DebugPaymentPageState  extends State<DebugPaymentPage> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        onPressed: _startPayment,
+                        onPressed: () {
+                          if (upiController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please enter a valid UPI ID')),
+                            );
+                            return;
+                          }
+                          notifier.startPayment(
+                            upiId: upiController.text,
+                            planName: planName,
+                            context: context,
+                          );
+                        },
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           backgroundColor: Colors.deepPurple.shade400,

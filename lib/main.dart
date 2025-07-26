@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Add this import
 import 'package:flutter/services.dart';
 import 'package:rekloze/screens/EditContractTimelinePdfPage.dart';
 import 'package:rekloze/screens/home_page.dart';
@@ -6,27 +7,31 @@ import 'package:rekloze/screens/upload_contract_page.dart';
 import 'package:rekloze/service/user_session_service.dart';
 import 'screens/login_page.dart';
 
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Riverpod and session
   String? token;
   try {
     await UserSessionService().initialize();
-     token = UserSessionService().token;
+    token = UserSessionService().token;
   } catch (e) {
     debugPrint('Initialization error: $e');
   }
 
-  runApp(MyApp(initialRoute: (token != null) ? '/contract' : '/loginPage'));
+  runApp(
+    ProviderScope( // Wrap with ProviderScope
+      child: MyApp(initialRoute: (token != null) ? '/contract' : '/loginPage'),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget { // Changed to ConsumerWidget
   final String initialRoute;
   const MyApp({super.key, required this.initialRoute});
 
-  // This widget is the root of your application.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) { // Added WidgetRef
     return MaterialApp(
       title: 'Rekloze App',
       debugShowCheckedModeBanner: false,
@@ -39,16 +44,13 @@ class MyApp extends StatelessWidget {
           child: child!,
         );
       },
-      initialRoute: '/loginPage',
+      initialRoute: initialRoute, // Use the passed initialRoute
       routes: {
         '/loginPage': (context) => const LoginPage(),
         '/homePage': (context) => const HomePage(),
         '/contract': (context) => const UploadContractPage(),
         '/editContractTimeline': (context) => EditContractTimelinePdfPage(),
       },
-      // home: const MyHomePage(title: 'Flutter Demo Home Page'),
-      // home: const LoginPage(),
-
     );
   }
 }

@@ -278,7 +278,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
               }
             }
           } catch (e) {
-            print('Error processing image: $e');
+            return null;
           }
           return null;
         }
@@ -314,9 +314,9 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
     } catch (e) {
       print('Error loading images: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load images: ${e.toString()}')),
-        );
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(content: Text('Failed to load images: ${e.toString()}')),
+        // );
       }
     } finally {
       if (mounted) {
@@ -1072,10 +1072,10 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
     final bool isMobile = MediaQuery.of(context).size.width < 600;
     final double horizontalPadding = isMobile ? 16.0 : 100.0;
     final double tableWidth = isMobile ? MediaQuery.of(context).size.width * 0.9 : 600;
-    final double headerImageWidth = isMobile ? MediaQuery.of(context).size.width * 0.5 : 350;
-    final double headerImageHeight = 140;
-    final double footerImageWidth = isMobile ? MediaQuery.of(context).size.width * 0.4 : 200;
-    final double footerImageHeight = 80;
+    final double headerImageWidth = isMobile ? MediaQuery.of(context).size.width * 0.5 : 450;
+    final double headerImageHeight = 180;
+    final double footerImageWidth = isMobile ? MediaQuery.of(context).size.width * 0.4 : 300;
+    final double footerImageHeight = 120;
     final TextStyle bodyTextStyle = TextStyle(
       fontFamily: 'Helvetica, Arial',
       fontSize: isMobile ? 14 : 16,
@@ -1735,7 +1735,7 @@ class _EditContractTimelinePdfPageState extends State<EditContractTimelinePdfPag
                   shadowColor: Colors.black.withOpacity(0.16),
                 ),
                 child: Text(
-                  'Download PDF',
+                  'Download Timeline PDF',
                   style: TextStyle(
                     fontSize: isMobile ? 16 : 18,
                     fontWeight: FontWeight.w500,
