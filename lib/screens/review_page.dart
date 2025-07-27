@@ -13,8 +13,6 @@ import 'package:pdfx/pdfx.dart';
 
 import '../widgets/contract_progress_bar.dart';
 
-
-
 class ReviewPage extends StatefulWidget {
   final Uint8List? pdfFile;
   final Map<String, dynamic> contractData;
@@ -56,7 +54,8 @@ class _ReviewPageState extends State<ReviewPage> {
 
   final TextEditingController buyerAgentController = TextEditingController();
   final TextEditingController escrowAgentController = TextEditingController();
-  final TextEditingController propertyAddressController = TextEditingController();
+  final TextEditingController propertyAddressController =
+      TextEditingController();
 
   String sellerName = '';
   String sellerAgentName = '';
@@ -111,7 +110,7 @@ class _ReviewPageState extends State<ReviewPage> {
     'Inspection Period Deadline',
     'Loan Approval Due Date',
     'Title Evidence Due Date',
-    'Closing Date'
+    'Closing Date',
   ];
 
   final List<String> cashFields = [
@@ -120,14 +119,15 @@ class _ReviewPageState extends State<ReviewPage> {
     'Additional Escrow Deposit Due Date',
     'Inspection Period Deadline',
     'Title Evidence Due Date',
-    'Closing Date'
+    'Closing Date',
   ];
 
   @override
   void initState() {
     super.initState();
     debugPrint(
-        'PDF file received: ${widget.pdfFile?.lengthInBytes ?? 0} bytes');
+      'PDF file received: ${widget.pdfFile?.lengthInBytes ?? 0} bytes',
+    );
     _initializeData();
     _loadPdf();
   }
@@ -135,10 +135,7 @@ class _ReviewPageState extends State<ReviewPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    isMobile = MediaQuery
-        .of(context)
-        .size
-        .width <= 768;
+    isMobile = MediaQuery.of(context).size.width <= 768;
   }
 
   // void _initializeData() {
@@ -150,7 +147,6 @@ class _ReviewPageState extends State<ReviewPage> {
   void _initializeData() {
     _processContractData(); // Only process contract data
   }
-
 
   void _loadPdf() async {
     if (widget.pdfFile == null || widget.pdfFile!.isEmpty) {
@@ -169,9 +165,9 @@ class _ReviewPageState extends State<ReviewPage> {
       } else {
         // Android implementation - SIMPLIFIED
         final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/contract_review_${DateTime
-            .now()
-            .millisecondsSinceEpoch}.pdf');
+        final file = File(
+          '${dir.path}/contract_review_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        );
 
         await file.writeAsBytes(widget.pdfFile!, flush: true);
         debugPrint('PDF saved to: ${file.path}');
@@ -207,16 +203,17 @@ class _ReviewPageState extends State<ReviewPage> {
   void _showPdfFallbackDialog() {
     showDialog(
       context: context,
-      builder: (context) =>
-          AlertDialog(
+      builder:
+          (context) => AlertDialog(
             title: Text("PDF Rendering Issue"),
             content: Text(
-                "Couldn't load PDF preview. Showing raw data instead."),
+              "Couldn't load PDF preview. Showing raw data instead.",
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text("OK"),
-              )
+              ),
             ],
           ),
     );
@@ -241,14 +238,16 @@ class _ReviewPageState extends State<ReviewPage> {
     super.dispose();
   }
 
-
   DateTime? _tryParseDate(String input) {
     if (input.isEmpty) return null;
 
-    final cleanInput = input
-        .replaceAll(
-        RegExp(r'\(|\)|On or before|Within', caseSensitive: false), '')
-        .trim();
+    final cleanInput =
+        input
+            .replaceAll(
+              RegExp(r'\(|\)|On or before|Within', caseSensitive: false),
+              '',
+            )
+            .trim();
 
     final formats = [
       DateFormat('MMMM d, yyyy'),
@@ -266,7 +265,6 @@ class _ReviewPageState extends State<ReviewPage> {
       } catch (_) {}
     }
 
-
     return null;
   }
 
@@ -274,14 +272,17 @@ class _ReviewPageState extends State<ReviewPage> {
     // debugPrint('Complete contractData: ${widget.contractData}');
     // debugPrint('All keys: ${widget.contractData.keys.join(', ')}');
 
-    final contractType = widget.contractData['Contract Type']
-        ?.toString()
-        .toLowerCase() ?? '';
-    selectedContractType = contractType.contains('finance') ? 'Finance'
-        : contractType.contains('cash') ? 'Cash'
-        : 'Select';
+    final contractType =
+        widget.contractData['Contract Type']?.toString().toLowerCase() ?? '';
+    selectedContractType =
+        contractType.contains('finance')
+            ? 'Finance'
+            : contractType.contains('cash')
+            ? 'Cash'
+            : 'Select';
 
-    sellerName = widget.contractData['Seller']?.toString() ??
+    sellerName =
+        widget.contractData['Seller']?.toString() ??
         widget.contractData['SellerName']?.toString() ??
         widget.contractData['Seller Name']?.toString() ??
         _extractSellerFromRawData(widget.contractData) ??
@@ -290,7 +291,6 @@ class _ReviewPageState extends State<ReviewPage> {
     sellerName = sellerName.replaceFirst(RegExp(r'^-\s*'), '').trim();
     buyerName = widget.contractData['Buyer']?.toString() ?? '';
     buyerName = buyerName.replaceFirst(RegExp(r'^-\s*'), '').trim();
-
 
     _extractAdditionalInfo();
     buyerNames = _splitNames(buyerName);
@@ -312,37 +312,38 @@ class _ReviewPageState extends State<ReviewPage> {
 
   String? _extractSellerFromRawData(Map<String, dynamic> contractData) {
     final rawString = contractData.toString();
-    final sellerPattern = RegExp(
-      r'Seller[:\s]+([^,]+)',
-      caseSensitive: false,
-    );
+    final sellerPattern = RegExp(r'Seller[:\s]+([^,]+)', caseSensitive: false);
     final match = sellerPattern.firstMatch(rawString);
     return match?.group(1)?.trim();
   }
 
   List<String> _splitNames(String names) {
     if (names.isEmpty) return [];
-    names = names
-        .replaceAll(RegExp(r'^[-\s]+|[-\s]+$'), '')
-        .trim();
+    names = names.replaceAll(RegExp(r'^[-\s]+|[-\s]+$'), '').trim();
 
-    if (names.contains(RegExp(
-        r'\b(Inc|LLC|L\.L\.C|Co|Corp|Ltd|Agency)\.?$', caseSensitive: false))) {
+    if (names.contains(
+      RegExp(
+        r'\b(Inc|LLC|L\.L\.C|Co|Corp|Ltd|Agency)\.?$',
+        caseSensitive: false,
+      ),
+    )) {
       return [names];
     }
 
     return names
         .split(RegExp(r',\s*(?![^()]*\))'))
         .expand((part) => part.split(RegExp(r'\s*&\s*')))
-        .expand((part) =>
-        part.split(RegExp(r'\s+and\s+', caseSensitive: false)))
+        .expand(
+          (part) => part.split(RegExp(r'\s+and\s+', caseSensitive: false)),
+        )
         .map((name) => name.trim())
         .where((name) => name.isNotEmpty)
         .toList();
   }
 
   void _extractAdditionalInfo() {
-    sellerAgentName = widget.contractData['Seller Agent Name']?.toString() ??
+    sellerAgentName =
+        widget.contractData['Seller Agent Name']?.toString() ??
         widget.contractData['Listing Agent Name']?.toString() ??
         '';
 
@@ -360,8 +361,7 @@ class _ReviewPageState extends State<ReviewPage> {
   void _parseDatesFromContract() {
     if (widget.effectiveDate != null) {
       dateFields['Effective Date'] = widget.effectiveDate;
-    }
-    else {
+    } else {
       final value = widget.contractData['Effective Date']?.toString();
       if (value != null && value.isNotEmpty) {
         final date = _tryParseDate(value);
@@ -374,9 +374,8 @@ class _ReviewPageState extends State<ReviewPage> {
       }
     }
 
-    final fieldsToProcess = selectedContractType == "Cash"
-        ? cashFields
-        : financeFields;
+    final fieldsToProcess =
+        selectedContractType == "Cash" ? cashFields : financeFields;
     for (final field in fieldsToProcess) {
       if (field == 'Effective Date') continue;
 
@@ -416,7 +415,8 @@ class _ReviewPageState extends State<ReviewPage> {
         manuallySetDates['Closing Date'] != true) {
       final closingOffset = dateOffsets['Closing Date']!;
       final calculatedClosingDate = effectiveDate.add(
-          Duration(days: closingOffset));
+        Duration(days: closingOffset),
+      );
       setState(() {
         dateFields['Closing Date'] = calculatedClosingDate;
       });
@@ -447,9 +447,7 @@ class _ReviewPageState extends State<ReviewPage> {
   Map<String, bool> manuallySetDates = {};
 
   bool _isValidName(String? name) {
-    if (name == null || name
-        .trim()
-        .isEmpty) return false;
+    if (name == null || name.trim().isEmpty) return false;
     final lowerCaseName = name.trim().toLowerCase();
     return !(lowerCaseName.contains('not specified') ||
         lowerCaseName.contains('not provided'));
@@ -458,12 +456,17 @@ class _ReviewPageState extends State<ReviewPage> {
   String _formatLabel(String key) {
     return key
         .replaceAllMapped(
-        RegExp(r'([a-z])([A-Z])'), (match) => '${match.group(1)} ${match.group(
-        2)}')
+          RegExp(r'([a-z])([A-Z])'),
+          (match) => '${match.group(1)} ${match.group(2)}',
+        )
         .replaceAll('_', ' ')
         .split(' ')
-        .map((word) =>
-    word.isNotEmpty ? '${word[0].toUpperCase()}${word.substring(1)}' : '')
+        .map(
+          (word) =>
+              word.isNotEmpty
+                  ? '${word[0].toUpperCase()}${word.substring(1)}'
+                  : '',
+        )
         .join(' ');
   }
 
@@ -479,15 +482,9 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   void _validateFields() {
-    lastNameError = newLastName
-        .trim()
-        .isEmpty;
-    emailError = newEmail
-        .trim()
-        .isEmpty || !_validateEmail(newEmail);
-    buyerNameError = buyerNames.isEmpty || buyerNames[0]
-        .trim()
-        .isEmpty;
+    lastNameError = newLastName.trim().isEmpty;
+    emailError = newEmail.trim().isEmpty || !_validateEmail(newEmail);
+    buyerNameError = buyerNames.isEmpty || buyerNames[0].trim().isEmpty;
 
     firstNameTouched = true;
     lastNameTouched = true;
@@ -548,9 +545,9 @@ class _ReviewPageState extends State<ReviewPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to select date: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to select date: $e')));
       }
     }
   }
@@ -662,7 +659,8 @@ class _ReviewPageState extends State<ReviewPage> {
       for (final contact in allContacts) {
         try {
           final contactResponse = await apiService.upsertContact(
-              contact['data']);
+            contact['data'],
+          );
           final contactId = contactResponse['contact']['id'];
 
           if (contact['isFirstBuyer'] && !oppCreated) {
@@ -679,7 +677,8 @@ class _ReviewPageState extends State<ReviewPage> {
         } catch (e) {
           debugPrint('Stack trace: $e');
           processingErrors.add(
-              'Failed to create contact: ${contact['data']['firstName']} - $e');
+            'Failed to create contact: ${contact['data']['firstName']} - $e',
+          );
           completedApiCalls++;
           setState(() => progress = completedApiCalls / totalApiCalls * 100);
         }
@@ -690,8 +689,8 @@ class _ReviewPageState extends State<ReviewPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              SubmitPage(
+          builder:
+              (context) => SubmitPage(
                 isOpportunityCreated: oppCreated,
                 processingErrors: processingErrors,
               ),
@@ -706,8 +705,8 @@ class _ReviewPageState extends State<ReviewPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) =>
-              SubmitPage(
+          builder:
+              (context) => SubmitPage(
                 isOpportunityCreated: false,
                 processingErrors: processingErrors,
               ),
@@ -722,8 +721,10 @@ class _ReviewPageState extends State<ReviewPage> {
     }
   }
 
-  List<Map<String, dynamic>> _prepareContacts(String contractTag,
-      String newContractNumber) {
+  List<Map<String, dynamic>> _prepareContacts(
+    String contractTag,
+    String newContractNumber,
+  ) {
     final contacts = <Map<String, dynamic>>[];
     int sellerCounter = 1;
     int buyerCounter = 1;
@@ -731,9 +732,8 @@ class _ReviewPageState extends State<ReviewPage> {
     for (final seller in sellerNames) {
       final nameParts = seller.split(' ');
       final firstName = nameParts.first;
-      final lastName = nameParts.length > 1
-          ? nameParts.sublist(1).join(' ')
-          : '';
+      final lastName =
+          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
       contacts.add({
         'data': _createContactData(
@@ -751,9 +751,8 @@ class _ReviewPageState extends State<ReviewPage> {
     for (final buyer in buyerNames) {
       final nameParts = buyer.split(' ');
       final firstName = nameParts.first;
-      final lastName = nameParts.length > 1
-          ? nameParts.sublist(1).join(' ')
-          : '';
+      final lastName =
+          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
       final isFirstBuyer = buyerCounter == 1;
 
       contacts.add({
@@ -776,9 +775,8 @@ class _ReviewPageState extends State<ReviewPage> {
     if (sellerAgentName.isNotEmpty) {
       final nameParts = sellerAgentName.split(' ');
       final firstName = nameParts.first;
-      final lastName = nameParts.length > 1
-          ? nameParts.sublist(1).join(' ')
-          : '';
+      final lastName =
+          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
       contacts.add({
         'data': _createContactData(
@@ -795,9 +793,8 @@ class _ReviewPageState extends State<ReviewPage> {
     if (buyerAgentController.text.isNotEmpty) {
       final nameParts = buyerAgentController.text.split(' ');
       final firstName = nameParts.first;
-      final lastName = nameParts.length > 1
-          ? nameParts.sublist(1).join(' ')
-          : '';
+      final lastName =
+          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
       contacts.add({
         'data': _createContactData(
@@ -814,9 +811,8 @@ class _ReviewPageState extends State<ReviewPage> {
     if (escrowAgentController.text.isNotEmpty) {
       final nameParts = escrowAgentController.text.split(' ');
       final firstName = nameParts.first;
-      final lastName = nameParts.length > 1
-          ? nameParts.sublist(1).join(' ')
-          : '';
+      final lastName =
+          nameParts.length > 1 ? nameParts.sublist(1).join(' ') : '';
 
       contacts.add({
         'data': _createContactData(
@@ -833,10 +829,12 @@ class _ReviewPageState extends State<ReviewPage> {
     return contacts;
   }
 
-  Map<String, dynamic> _createContactData(String firstName,
-      String lastName,
-      String contractTag,
-      String typeTag,) {
+  Map<String, dynamic> _createContactData(
+    String firstName,
+    String lastName,
+    String contractTag,
+    String typeTag,
+  ) {
     final email = _generateEmail(firstName, lastName);
 
     return {
@@ -851,61 +849,57 @@ class _ReviewPageState extends State<ReviewPage> {
       'customFields': [
         {
           'key': 'contract_contract_type',
-          'value': contractTag.replaceFirst('#', '')
-        }
-      ]
+          'value': contractTag.replaceFirst('#', ''),
+        },
+      ],
     };
   }
 
   String _generateEmail(String firstName, String lastName) {
     final cleanFirst = firstName.toLowerCase().replaceAll(
-        RegExp(r'[^a-z]'), '');
+      RegExp(r'[^a-z]'),
+      '',
+    );
     final cleanLast = lastName.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
-    return '$cleanFirst${cleanLast.isNotEmpty
-        ? '.$cleanLast'
-        : ''}@no-email.net';
+    return '$cleanFirst${cleanLast.isNotEmpty ? '.$cleanLast' : ''}@no-email.net';
   }
 
-  Future<void> _createOpportunityAndUpdateContact(String contactId,
-      String newContractNumber,
-      String firstName,) async {
+  Future<void> _createOpportunityAndUpdateContact(
+    String contactId,
+    String newContractNumber,
+    String firstName,
+  ) async {
     opportunityCustomFields = _prepareOpportunityFields(newContractNumber);
-
 
     final opportunityData = {
       'pipelineId': "B2abziQpwJBYSr4qzopT",
       'locationId': apiService.locationId,
       'contactId': contactId,
-      'name': 'Contract #$newContractNumber - ${propertyAddressController.text
-          .isNotEmpty
-          ? propertyAddressController.text
-          : "Default Name"}',
+      'name':
+          'Contract #$newContractNumber - ${propertyAddressController.text.isNotEmpty ? propertyAddressController.text : "Default Name"}',
       'customFields': opportunityCustomFields,
     };
 
     final opportunityResponse = await apiService.upsertOpportunity(
-        opportunityData);
+      opportunityData,
+    );
     final opportunityId = opportunityResponse['opportunity']['id'];
     final opportunityName = opportunityData['name'];
 
-    await apiService.updateContactCustomFields(
-      contactId,
-      [
-        {'key': 'oppurtunityid', 'value': opportunityId},
-        {'key': 'oppurtunityname', 'value': opportunityName},
-      ],
-    );
+    await apiService.updateContactCustomFields(contactId, [
+      {'key': 'oppurtunityid', 'value': opportunityId},
+      {'key': 'oppurtunityname', 'value': opportunityName},
+    ]);
   }
 
   List<Map<String, dynamic>> _prepareOpportunityFields(
-      String newContractNumber) {
+    String newContractNumber,
+  ) {
     final fields = <Map<String, dynamic>>[];
 
     for (final entry in dateFields.entries) {
       if (entry.value != null) {
-        final snakeCaseKey = entry.key
-            .toLowerCase()
-            .replaceAll(' ', '_');
+        final snakeCaseKey = entry.key.toLowerCase().replaceAll(' ', '_');
         fields.add({
           'key': snakeCaseKey,
           'value': DateFormat('yyyy-MM-dd').format(entry.value!),
@@ -915,19 +909,13 @@ class _ReviewPageState extends State<ReviewPage> {
 
     for (int i = 0; i < sellerNames.length; i++) {
       if (sellerNames[i].isNotEmpty) {
-        fields.add({
-          'key': 'seller_${i + 1}',
-          'value': sellerNames[i],
-        });
+        fields.add({'key': 'seller_${i + 1}', 'value': sellerNames[i]});
       }
     }
 
     for (int i = 0; i < buyerNames.length; i++) {
       if (buyerNames[i].isNotEmpty) {
-        fields.add({
-          'key': 'buyer_${i + 1}',
-          'value': buyerNames[i],
-        });
+        fields.add({'key': 'buyer_${i + 1}', 'value': buyerNames[i]});
       }
     }
 
@@ -943,51 +931,51 @@ class _ReviewPageState extends State<ReviewPage> {
       {'key': 'buyers_agent', 'value': buyerAgentController.text},
       {
         'key': 'listing_agent_name',
-        'value': widget.contractData['Listing Agent Name'] ?? ''
+        'value': widget.contractData['Listing Agent Name'] ?? '',
       },
       {
         'key': 'listing_agent_company_name',
-        'value': widget.contractData['Listing Agent Company'] ?? ''
+        'value': widget.contractData['Listing Agent Company'] ?? '',
       },
       {
         'key': 'listing_agent_phone',
-        'value': widget.contractData['Listing Agent Phone'] ?? ''
+        'value': widget.contractData['Listing Agent Phone'] ?? '',
       },
       {
         'key': 'listing_agent_email',
-        'value': widget.contractData['Listing Agent Email'] ?? ''
+        'value': widget.contractData['Listing Agent Email'] ?? '',
       },
       {
         'key': 'selling_agent_name',
-        'value': widget.contractData['Selling Agent Name'] ?? ''
+        'value': widget.contractData['Selling Agent Name'] ?? '',
       },
       {
         'key': 'selling_agent_company_name',
-        'value': widget.contractData['Selling Agent Company'] ?? ''
+        'value': widget.contractData['Selling Agent Company'] ?? '',
       },
       {
         'key': 'selling_agent_phone',
-        'value': widget.contractData['Selling Agent Phone'] ?? ''
+        'value': widget.contractData['Selling Agent Phone'] ?? '',
       },
       {
         'key': 'selling_agent_email',
-        'value': widget.contractData['Selling Agent Email'] ?? ''
+        'value': widget.contractData['Selling Agent Email'] ?? '',
       },
       {
         'key': 'mlolender_name',
-        'value': widget.contractData['MLO/Lender Name'] ?? ''
+        'value': widget.contractData['MLO/Lender Name'] ?? '',
       },
       {
         'key': 'mlolender_company_name',
-        'value': widget.contractData['MLO/Lender Company'] ?? ''
+        'value': widget.contractData['MLO/Lender Company'] ?? '',
       },
       {
         'key': 'mlolender_phone',
-        'value': widget.contractData['MLO/Lender Phone'] ?? ''
+        'value': widget.contractData['MLO/Lender Phone'] ?? '',
       },
       {
         'key': 'mlolender_email',
-        'value': widget.contractData['MLO/Lender Email'] ?? ''
+        'value': widget.contractData['MLO/Lender Email'] ?? '',
       },
     ]);
 
@@ -1009,11 +997,14 @@ class _ReviewPageState extends State<ReviewPage> {
               labelText: isRequired ? '$key *' : key,
               border: OutlineInputBorder(),
               suffixIcon: Icon(Icons.calendar_today, size: 20),
-              labelStyle: isRequired && date == null
-                  ? TextStyle(color: Colors.red)
-                  : null,
+              labelStyle:
+                  isRequired && date == null
+                      ? TextStyle(color: Colors.red)
+                      : null,
               contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 12),
+                horizontal: 12,
+                vertical: 12,
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1031,7 +1022,6 @@ class _ReviewPageState extends State<ReviewPage> {
       );
     }).toList();
   }
-
 
   bool _isFullScreen = false;
 
@@ -1082,22 +1072,14 @@ class _ReviewPageState extends State<ReviewPage> {
         borderRadius: _isFullScreen ? null : BorderRadius.circular(8),
       ),
       constraints: BoxConstraints(
-        maxHeight: _isFullScreen
-            ? MediaQuery
-            .of(context)
-            .size
-            .height
-            : MediaQuery
-            .of(context)
-            .size
-            .height * 0.6,
+        maxHeight:
+            _isFullScreen
+                ? MediaQuery.of(context).size.height
+                : MediaQuery.of(context).size.height * 0.6,
       ),
       child: Stack(
         children: [
-          PdfView(
-            controller: pdfController,
-            scrollDirection: Axis.vertical,
-          ),
+          PdfView(controller: pdfController, scrollDirection: Axis.vertical),
           if (_isFullScreen)
             Positioned(
               top: 16,
@@ -1123,7 +1105,8 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   Widget _buildForm() {
-    final isFormValid = selectedContractType != 'Select' &&
+    final isFormValid =
+        selectedContractType != 'Select' &&
         _allDatesFilled() &&
         !firstNameError &&
         !lastNameError &&
@@ -1143,24 +1126,29 @@ class _ReviewPageState extends State<ReviewPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Contract Type',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    'Contract Type',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                   SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: selectedContractType,
-                    items: ['Select', 'Finance', 'Cash', 'None']
-                        .map((type) =>
-                        DropdownMenuItem(
-                          value: type,
-                          child: Text(type),
-                        ))
-                        .toList(),
+                    items:
+                        ['Select', 'Finance', 'Cash', 'None']
+                            .map(
+                              (type) => DropdownMenuItem(
+                                value: type,
+                                child: Text(type),
+                              ),
+                            )
+                            .toList(),
                     onChanged: _onContractTypeChanged,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     isExpanded: true,
                   ),
@@ -1181,23 +1169,26 @@ class _ReviewPageState extends State<ReviewPage> {
                 children: [
                   Row(
                     children: [
-                      Text('Buyer Information',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(
+                        'Buyer Information',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                       Spacer(),
                       if (buyerNames.length < 5)
                         TextButton(
                           onPressed: _addBuyer,
-                          child: Text('+ Add Buyer',
-                              style: TextStyle(color: Colors.indigo)),
+                          child: Text(
+                            '+ Add Buyer',
+                            style: TextStyle(color: Colors.indigo),
+                          ),
                         ),
                     ],
                   ),
                   SizedBox(height: 12),
-                  ...buyerNames
-                      .asMap()
-                      .entries
-                      .map((entry) {
+                  ...buyerNames.asMap().entries.map((entry) {
                     final index = entry.key;
                     return Padding(
                       padding: EdgeInsets.only(bottom: 12),
@@ -1208,20 +1199,21 @@ class _ReviewPageState extends State<ReviewPage> {
                               decoration: InputDecoration(
                                 labelText: 'Buyer ${index + 1} Name',
                                 border: OutlineInputBorder(),
-                                errorText: index == 0 && buyerNameError
-                                    ? 'Buyer name is required'
-                                    : null,
+                                errorText:
+                                    index == 0 && buyerNameError
+                                        ? 'Buyer name is required'
+                                        : null,
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 12),
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
                               ),
                               initialValue: entry.value,
                               onChanged: (value) {
                                 setState(() {
                                   buyerNames[index] = value;
                                   if (index == 0) {
-                                    buyerNameError = value
-                                        .trim()
-                                        .isEmpty;
+                                    buyerNameError = value.trim().isEmpty;
                                   }
                                 });
                               },
@@ -1229,8 +1221,10 @@ class _ReviewPageState extends State<ReviewPage> {
                           ),
                           if (buyerNames.length > 1)
                             IconButton(
-                              icon: Icon(Icons.remove_circle_outline,
-                                  color: Colors.red),
+                              icon: Icon(
+                                Icons.remove_circle_outline,
+                                color: Colors.red,
+                              ),
                               onPressed: _removeBuyer,
                             ),
                         ],
@@ -1254,23 +1248,26 @@ class _ReviewPageState extends State<ReviewPage> {
                 children: [
                   Row(
                     children: [
-                      Text('Seller Information',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(
+                        'Seller Information',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                       Spacer(),
                       if (sellerNames.length < 5)
                         TextButton(
                           onPressed: _addSeller,
-                          child: Text('+ Add Seller',
-                              style: TextStyle(color: Colors.indigo)),
+                          child: Text(
+                            '+ Add Seller',
+                            style: TextStyle(color: Colors.indigo),
+                          ),
                         ),
                     ],
                   ),
                   SizedBox(height: 12),
-                  ...sellerNames
-                      .asMap()
-                      .entries
-                      .map((entry) {
+                  ...sellerNames.asMap().entries.map((entry) {
                     final index = entry.key;
                     return Padding(
                       padding: EdgeInsets.only(bottom: 12),
@@ -1282,7 +1279,9 @@ class _ReviewPageState extends State<ReviewPage> {
                                 labelText: 'Seller ${index + 1} Name',
                                 border: OutlineInputBorder(),
                                 contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 12),
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
                               ),
                               initialValue: entry.value,
                               onChanged: (value) {
@@ -1294,8 +1293,10 @@ class _ReviewPageState extends State<ReviewPage> {
                           ),
                           if (sellerNames.length > 1)
                             IconButton(
-                              icon: Icon(Icons.remove_circle_outline,
-                                  color: Colors.red),
+                              icon: Icon(
+                                Icons.remove_circle_outline,
+                                color: Colors.red,
+                              ),
                               onPressed: _removeSeller,
                             ),
                         ],
@@ -1317,27 +1318,27 @@ class _ReviewPageState extends State<ReviewPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Primary Buyer Details',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    'Primary Buyer Details',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                   SizedBox(height: 12),
                   TextFormField(
                     decoration: InputDecoration(
                       labelText: 'First Name',
                       border: OutlineInputBorder(),
-                      errorText: firstNameError
-                          ? 'First name is required'
-                          : null,
+                      errorText:
+                          firstNameError ? 'First name is required' : null,
                       contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     initialValue: newFirstName,
                     onChanged: (value) {
                       setState(() {
                         newFirstName = value;
-                        firstNameError = value
-                            .trim()
-                            .isEmpty;
+                        firstNameError = value.trim().isEmpty;
                       });
                     },
                   ),
@@ -1348,15 +1349,15 @@ class _ReviewPageState extends State<ReviewPage> {
                       border: OutlineInputBorder(),
                       errorText: lastNameError ? 'Last name is required' : null,
                       contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     initialValue: newLastName,
                     onChanged: (value) {
                       setState(() {
                         newLastName = value;
-                        lastNameError = value
-                            .trim()
-                            .isEmpty;
+                        lastNameError = value.trim().isEmpty;
                       });
                     },
                   ),
@@ -1367,15 +1368,16 @@ class _ReviewPageState extends State<ReviewPage> {
                       border: OutlineInputBorder(),
                       errorText: emailError ? 'Valid email is required' : null,
                       contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     initialValue: newEmail,
                     onChanged: (value) {
                       setState(() {
                         newEmail = value;
-                        emailError = value
-                            .trim()
-                            .isEmpty || !_validateEmail(value);
+                        emailError =
+                            value.trim().isEmpty || !_validateEmail(value);
                       });
                     },
                   ),
@@ -1394,16 +1396,19 @@ class _ReviewPageState extends State<ReviewPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Agent Information',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    'Agent Information',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                   SizedBox(height: 12),
                   TextFormField(
                     decoration: InputDecoration(
                       labelText: 'Seller Agent Name',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     initialValue: sellerAgentName,
                     onChanged: (value) {
@@ -1418,7 +1423,9 @@ class _ReviewPageState extends State<ReviewPage> {
                       labelText: 'Buyer Agent Name',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     controller: buyerAgentController,
                   ),
@@ -1428,7 +1435,9 @@ class _ReviewPageState extends State<ReviewPage> {
                       labelText: 'Escrow Agent Name',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     controller: escrowAgentController,
                   ),
@@ -1438,7 +1447,9 @@ class _ReviewPageState extends State<ReviewPage> {
                       labelText: 'Property Address',
                       border: OutlineInputBorder(),
                       contentPadding: EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 12),
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
                     controller: propertyAddressController,
                   ),
@@ -1457,9 +1468,10 @@ class _ReviewPageState extends State<ReviewPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Contract Dates',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(
+                    'Contract Dates',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                   SizedBox(height: 12),
                   ..._getDateWidgets(),
                 ],
@@ -1530,101 +1542,106 @@ class _ReviewPageState extends State<ReviewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _isFullScreen
-          ? AppBar(
-        title: Text('Contract Preview'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: () {
-            setState(() {
-              _isFullScreen = false;
-            });
-          },
-        ),
-      )
-          : AppBar(
-        title: Text('Contract Preview'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: widget.onGoBack,
-        ),
-      ),
-      body: _isFullScreen
-          ? _buildPdfViewer()
-          : Padding(
-        padding: EdgeInsets.all(16.0),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth > 768) {
-              // Web layout - side by side
-              return Column(
-                children: [
-                  ContractProgressBar(currentStep: 2),
-                  SizedBox(height: 20),
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // PDF Viewer (left side)
-                        Expanded(
-                          flex: 1,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _isFullScreen = true;
-                              });
-                            },
-                            child: _buildPdfViewer(),
-                          ),
-                        ),
-                        SizedBox(width: 20),
-                        // Form (right side)
-                        Expanded(
-                          flex: 1,
-                          child: SingleChildScrollView(
-                            child: _buildForm(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            } else {
-              // Mobile layout - stacked
-              return SingleChildScrollView(
-                child: Column(
-                  children: [
-                    ContractProgressBar(currentStep: 2),
-                    SizedBox(height: 20),
-                    // PDF Viewer (top)
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _isFullScreen = true;
-                        });
-                      },
-                      child: Container(
-                        height: MediaQuery
-                            .of(context)
-                            .size
-                            .height * 0.4,
-                        child: _buildPdfViewer(),
-                      ),
-                    ),
-                    SizedBox(height: 20),
-                    // Form (bottom)
-                    _buildForm(),
-                  ],
+      resizeToAvoidBottomInset: false,
+      appBar:
+          _isFullScreen
+              ? AppBar(
+                title: Text('Contract Preview'),
+                backgroundColor: Colors.indigo,
+                foregroundColor: Colors.white,
+                leading: IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: () {
+                    setState(() {
+                      _isFullScreen = false;
+                    });
+                  },
                 ),
-              );
-            }
-          },
-        ),
+              )
+              : AppBar(
+                title: Text('Contract Preview'),
+                backgroundColor: Colors.indigo,
+                foregroundColor: Colors.white,
+                leading: IconButton(
+                  icon: Icon(Icons.arrow_back),
+                  onPressed: widget.onGoBack,
+                ),
+              ),
+      body: SafeArea(
+        bottom: true,
+        minimum: const EdgeInsets.only(bottom: 24),
+        child:
+            _isFullScreen
+                ? _buildPdfViewer()
+                : Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth > 768) {
+                        // Web layout - side by side
+                        return Column(
+                          children: [
+                            ContractProgressBar(currentStep: 2),
+                            SizedBox(height: 20),
+                            Expanded(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // PDF Viewer (left side)
+                                  Expanded(
+                                    flex: 1,
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        setState(() {
+                                          _isFullScreen = true;
+                                        });
+                                      },
+                                      child: _buildPdfViewer(),
+                                    ),
+                                  ),
+                                  SizedBox(width: 20),
+                                  // Form (right side)
+                                  Expanded(
+                                    flex: 1,
+                                    child: SingleChildScrollView(
+                                      child: _buildForm(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      } else {
+                        // Mobile layout - stacked
+                        return SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              ContractProgressBar(currentStep: 2),
+                              SizedBox(height: 20),
+                              // PDF Viewer (top)
+                              GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _isFullScreen = true;
+                                  });
+                                },
+                                child: Container(
+                                  height:
+                                      MediaQuery.of(context).size.height * 0.4,
+                                  child: _buildPdfViewer(),
+                                ),
+                              ),
+                              SizedBox(height: 20),
+                              // Form (bottom)
+                              _buildForm(),
+                            ],
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
       ),
     );
   }
