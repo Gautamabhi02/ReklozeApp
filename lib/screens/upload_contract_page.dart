@@ -12,6 +12,7 @@ import '../widgets/contract_progress_bar.dart';
 import '../widgets/custom_navbar.dart';
 import '../widgets/navbar_page.dart';
 import 'review_page.dart';
+import 'dart:isolate';
 
 class UploadContractPage extends StatefulWidget {
   const UploadContractPage({super.key});
@@ -87,7 +88,8 @@ class _UploadContractPageState extends State<UploadContractPage> {
       showDialog(
         context: context,
         builder:
-            (_) => AlertDialog(
+            (_) =>
+            AlertDialog(
               title: const Row(
                 children: [
                   Icon(Icons.check_circle, color: Colors.green),
@@ -96,7 +98,8 @@ class _UploadContractPageState extends State<UploadContractPage> {
                 ],
               ),
               content: Text(
-                "${file.name} was uploaded successfully (${(file.size / 1024 / 1024).toStringAsFixed(2)} MB)",
+                "${file.name} was uploaded successfully (${(file.size / 1024 /
+                    1024).toStringAsFixed(2)} MB)",
               ),
               actions: [
                 TextButton(
@@ -211,90 +214,97 @@ class _UploadContractPageState extends State<UploadContractPage> {
   // }
 
   void _submitContract() async {
-    if (_selectedFile == null) {
+    if (_selectedFile == null || !_isValidPdf(_selectedFile!.bytes!)) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Please select a file")));
+      ).showSnackBar(SnackBar(content: Text("Please select a valid PDF file")));
       return;
     }
-    if (!_isValidPdf(_selectedFile!.bytes!)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Invalid PDF file. Please select a valid PDF."),
-        ),
-      );
-      return;
-    }
-    setState(() => _isUploading = true);
-    // await _simulateUploadProgress();
 
-    String promptText =
+    setState(() => _isUploading = true);
+
+    final promptText =
         "Extract the following details from the contract in clean markdown format without any explanation: Seller, Buyer, Seller Agent Name, Buyer Agent Name, Listing Agent Name, Listing Agent Company Name, Listing Agent Phone, Listing Agent Email, Selling Agent Name, Selling Agent Company Name, Selling Agent Phone, Selling Agent Email, Escrow Agent Name, Escrow Agent Phone, Escrow Agent Email, Property Address, Property Tax ID, Contract Type (Cash or Finance),  Closing Date (use actual date if present in the contract, otherwise use relative format like '(35 days after Effective Date)'). For all other date fields — Initial Escrow Deposit Due Date, Loan Application Due Date, Additional Escrow Deposit Due Date, Inspection Period Deadline, Loan Approval Due Date, Title Evidence Due Date — return relative offsets like '(5 days after Effective Date)' or '(10 days before Closing Date)' only if actual dates are not present,if both are present that is good gave both of them. Do not include full calendar dates unless they are explicitly written in the contract.";
 
-    final simulation = _simulateUploadProgress();
+    final progressFuture = _simulateUploadProgress();
 
-    final response = await ApiService.uploadContractWithPrompt(
-      selectedFile: _selectedFile!,
-      promptText: promptText,
+    // Launch API call in isolate
+    final resultPort = ReceivePort();
+    await Isolate.spawn<_IsolateRequest>(
+      _isolateUploadEntry,
+      _IsolateRequest(
+        sendPort: resultPort.sendPort,
+        file: _selectedFile!,
+        prompt: promptText,
+      ),
     );
-    await simulation;
+    final String apiResponseBody = await resultPort.first as String;
+
+    // Wait for progress to complete
+    await progressFuture;
+
     setState(() {
       _isUploading = false;
       _uploadProgress = 0;
     });
 
-    if (response != null && response.statusCode == 200) {
-      final parsedData = parseTextToJson(response.body);
-      showDialog(
-        context: context,
-        builder:
-            (_) => AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Row(
-                children: [
-                  Icon(Icons.info, color: Colors.orange),
-                  SizedBox(width: 10),
-                  Text("Verify Data", style: TextStyle(color: Colors.black)),
-                ],
-              ),
-              content: const Text(
-                "The extracted data may not be 100% accurate.\n\nPlease verify all fields before saving to CRM.",
-                style: TextStyle(fontSize: 15),
-              ),
-              actions: [
-                TextButton(
-                  style: TextButton.styleFrom(foregroundColor: Colors.indigo),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (_) => ReviewPage(
-                              pdfFile:
-                                  _selectedFile!.bytes ??
-                                  Uint8List(0), // Ensure not null
-                              contractData: parsedData,
-                              effectiveDate: _selectedDate,
-                              onProceed: () => print("Proceed clicked"),
-                              onGoBack: () => Navigator.pop(context),
-                            ),
-                      ),
-                    );
-                  },
-                  child: const Text("Review"),
-                ),
-              ],
-            ),
-      );
+    // Parse response and show modal
+    if (apiResponseBody.isNotEmpty) {
+      final parsedData = parseTextToJson(apiResponseBody);
+      _showReviewDialog(parsedData);
     } else {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Upload failed")));
     }
+  }
+
+  void _showReviewDialog(Map<String, String> contractData) {
+    showDialog(
+      context: context,
+      builder:
+          (_) =>
+          AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.info, color: Colors.orange),
+                SizedBox(width: 10),
+                Text("Verify Data", style: TextStyle(color: Colors.black)),
+              ],
+            ),
+            content: const Text(
+              "The extracted data may not be 100% accurate.\n\n"
+                  "Please verify all fields before saving to CRM.",
+            ),
+            actions: [
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: Colors.indigo),
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (_) =>
+                          ReviewPage(
+                            pdfFile: _selectedFile!.bytes ?? Uint8List(0),
+                            contractData: contractData,
+                            effectiveDate: _selectedDate,
+                            onProceed: () => print("Proceed clicked"),
+                            onGoBack: () => Navigator.pop(context),
+                          ),
+                    ),
+                  );
+                },
+                child: const Text("Review"),
+              ),
+            ],
+          ),
+    );
   }
 
   bool _isValidPdf(Uint8List bytes) {
@@ -334,9 +344,9 @@ class _UploadContractPageState extends State<UploadContractPage> {
             .replaceAll("```markdown", "")
             .replaceAll("```", "")
             .replaceAllMapped(
-              RegExp(r'\*\*(.*?)\*\*'),
+          RegExp(r'\*\*(.*?)\*\*'),
               (match) => match.group(1) ?? '',
-            )
+        )
             .replaceAll(RegExp(r'^- ', multiLine: true), '')
             .trim();
 
@@ -448,7 +458,7 @@ class _UploadContractPageState extends State<UploadContractPage> {
           onPressed: isButtonEnabled ? _submitContract : null,
           style: ElevatedButton.styleFrom(
             backgroundColor:
-                isButtonEnabled ? Colors.deepPurpleAccent : Colors.grey,
+            isButtonEnabled ? Colors.deepPurpleAccent : Colors.grey,
             foregroundColor: Colors.white,
             elevation: 4,
             minimumSize: const Size.fromHeight(50),
@@ -505,8 +515,8 @@ class _UploadContractPageState extends State<UploadContractPage> {
           ),
           child: const Text(
             "IMPORTANT: The effective date is the day the seller returns the fully executed contract (day 0). "
-            "All deadlines count calendar days including weekends/holidays. "
-            "If a deadline falls on a weekend/holiday, it moves to the next business day.",
+                "All deadlines count calendar days including weekends/holidays. "
+                "If a deadline falls on a weekend/holiday, it moves to the next business day.",
             style: TextStyle(
               color: Colors.red,
               fontWeight: FontWeight.bold,
@@ -529,7 +539,8 @@ class _UploadContractPageState extends State<UploadContractPage> {
                 Text(
                   _selectedDate == null
                       ? "Select a date"
-                      : "${_selectedDate!.month}/${_selectedDate!.day}/${_selectedDate!.year}",
+                      : "${_selectedDate!.month}/${_selectedDate!
+                      .day}/${_selectedDate!.year}",
                   style: TextStyle(
                     color: _selectedDate == null ? Colors.grey : Colors.black,
                   ),
@@ -548,54 +559,63 @@ class _UploadContractPageState extends State<UploadContractPage> {
   }
 
   int _currentStep = 0;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       appBar: const NavbarPage(),
       drawer: const CustomNavbar(),
-      body: SafeArea(
-        bottom: true,
-        minimum: const EdgeInsets.only(bottom: 24),
-        child: Container(
-          width: double.infinity,
-          height: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFFE3F2FD), Color(0xFFF3E5F5)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          padding: EdgeInsets.only(
-            bottom:
-                MediaQuery.of(context).viewInsets.bottom > 0
-                    ? MediaQuery.of(context).viewInsets.bottom + 16
-                    : 0,
-          ),
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ContractProgressBar(currentStep: 1),
-                    const SizedBox(height: 20),
-                    _buildFileCard(),
-                    const SizedBox(height: 20),
-                    _buildDateSelector(),
-                    const SizedBox(height: 30),
-                    _isUploading ? _buildProgressBar() : _buildUploadButton(),
-                  ],
+                constraints: BoxConstraints(
+                  maxWidth: 500,
+                  minHeight: constraints.maxHeight,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 10),
+                      ContractProgressBar(currentStep: 1),
+                      const SizedBox(height: 14),
+                      _buildFileCard(),
+                      const SizedBox(height: 14),
+                      _buildDateSelector(),
+                      const SizedBox(height: 18),
+                      _isUploading ? _buildProgressBar() : _buildUploadButton(),
+                      const SizedBox(height: 10),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
+
+}
+
+  class _IsolateRequest {
+  final SendPort sendPort;
+  final PlatformFile file;
+  final String prompt;
+  _IsolateRequest({
+    required this.sendPort,
+    required this.file,
+    required this.prompt,
+  });
+}
+
+Future<void> _isolateUploadEntry(_IsolateRequest req) async {
+  final response = await ApiService.uploadContractWithPrompt(
+    selectedFile: req.file,
+    promptText: req.prompt,
+  );
+  req.sendPort.send(response?.body ?? '');
 }
