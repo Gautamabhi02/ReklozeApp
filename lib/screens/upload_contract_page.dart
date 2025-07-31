@@ -316,9 +316,6 @@ class _UploadContractPageState extends State<UploadContractPage> {
 
   Map<String, String> parseTextToJson(String responseText) {
     final Map<String, String> data = {};
-
-    // debugPrint("Raw response: $responseText");
-
     try {
       final Map<String, dynamic> parsed = json.decode(responseText);
       final content = parsed['choices']?[0]?['message']?['content'];
@@ -597,26 +594,6 @@ class _UploadContractPageState extends State<UploadContractPage> {
   }
 
 }
-
-//   class _IsolateRequest {
-//   final SendPort sendPort;
-//   final PlatformFile file;
-//   final String prompt;
-//   _IsolateRequest({
-//     required this.sendPort,
-//     required this.file,
-//     required this.prompt,
-//   });
-// }
-//
-// Future<void> _isolateUploadEntry(_IsolateRequest req) async {
-//   final response = await ApiService.uploadContractWithPrompt(
-//     selectedFile: req.file,
-//     promptText: req.prompt,
-//   );
-//   req.sendPort.send(response?.body ?? '');
-// }
-
 
 class ComputeRequest {
   final Uint8List fileBytes;
