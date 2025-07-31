@@ -87,7 +87,6 @@ class _SubmitPageState extends State<SubmitPage> {
                   // Progress bar at the top
                   const ContractProgressBar(currentStep: 3),
 
-                  // Centered content
                   Expanded(
                     child: SingleChildScrollView(
                       child: Padding(

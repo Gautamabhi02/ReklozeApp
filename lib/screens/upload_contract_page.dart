@@ -228,7 +228,7 @@ class _UploadContractPageState extends State<UploadContractPage> {
 
     final progressFuture = _simulateUploadProgress();
 
-    // Launch API call in isolate
+    // Launch API call in compute
     final apiResponseBody = await compute(
       computeUpload,
       ComputeRequest(
@@ -322,7 +322,6 @@ class _UploadContractPageState extends State<UploadContractPage> {
 
       if (content is String) {
         responseText = content;
-        // debugPrint("====================Extracted markdown content==========================: $responseText");
       } else {
         debugPrint("No markdown content found.");
         return data;
@@ -332,7 +331,6 @@ class _UploadContractPageState extends State<UploadContractPage> {
       return data;
     }
 
-    // Clean markdown formatting
     responseText =
         responseText
             .replaceAll("```markdown", "")
@@ -357,7 +355,6 @@ class _UploadContractPageState extends State<UploadContractPage> {
       String key = match.group(1)?.trim() ?? '';
       String value = match.group(2)?.trim() ?? '';
 
-      // Optional: clean up common unwanted characters
       key = key.replaceAll(RegExp(r'[*"\-0-9]'), '').trim();
       value = value.replaceFirst(RegExp(r'^["*\s]+'), '').trim();
 

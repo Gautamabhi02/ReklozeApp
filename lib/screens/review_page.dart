@@ -138,14 +138,9 @@ class _ReviewPageState extends State<ReviewPage> {
     isMobile = MediaQuery.of(context).size.width <= 768;
   }
 
-  // void _initializeData() {
-  //   if (widget.pdfFile != null) {
-  //     pdfUrl = 'data:application/pdf;base64,${base64Encode(widget.pdfFile!)}';
-  //   }
-  //   _processContractData();
-  // }
+
   void _initializeData() {
-    _processContractData(); // Only process contract data
+    _processContractData();
   }
 
   void _loadPdf() async {
@@ -189,7 +184,6 @@ class _ReviewPageState extends State<ReviewPage> {
         _showError = true;
       });
 
-      // Fallback to external viewer
       if (_tempPdfPath != null) {
         try {
           await OpenFile.open(_tempPdfPath!);
@@ -629,20 +623,6 @@ class _ReviewPageState extends State<ReviewPage> {
     });
     await Future.delayed(Duration(milliseconds: 100));
     try {
-      // final lastContractResponse = await apiService.getLastContractNumber();
-      // String lastContractStr;
-      // if (lastContractResponse['customValues'] is Map) {
-      //   lastContractStr =
-      //       lastContractResponse['customValues']['contract_contract_type']
-      //           ?.toString() ?? "Contract 0000";
-      // } else {
-      //   lastContractStr = "Contract 0000";
-      // }
-      // final numericPart = lastContractStr.replaceAll(RegExp(r'[^0-9]'), '');
-      // final lastContractNumber = int.tryParse(numericPart) ?? 0;
-      //
-      // newContractNumber = (lastContractNumber + 1).toString().padLeft(4, '0');
-      // final contractTag = 'contract #$newContractNumber';
 
       final lastContractResponse = await apiService.getLastContractNumber();
       final lastContractStr = lastContractResponse['value'] ?? "Contract 0000";
