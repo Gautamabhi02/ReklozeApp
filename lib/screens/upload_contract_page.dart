@@ -229,17 +229,14 @@ class _UploadContractPageState extends State<UploadContractPage> {
     final progressFuture = _simulateUploadProgress();
 
     // Launch API call in isolate
-    final resultPort = ReceivePort();
-    await Isolate.spawn<_IsolateRequest>(
-      _isolateUploadEntry,
-      _IsolateRequest(
-        sendPort: resultPort.sendPort,
-        file: _selectedFile!,
+    final apiResponseBody = await compute(
+      computeUpload,
+      ComputeRequest(
+        fileBytes: _selectedFile!.bytes!,
+        fileName: _selectedFile!.name,
         prompt: promptText,
       ),
     );
-    final String apiResponseBody = await resultPort.first as String;
-
     // Wait for progress to complete
     await progressFuture;
 
@@ -601,21 +598,41 @@ class _UploadContractPageState extends State<UploadContractPage> {
 
 }
 
-  class _IsolateRequest {
-  final SendPort sendPort;
-  final PlatformFile file;
+//   class _IsolateRequest {
+//   final SendPort sendPort;
+//   final PlatformFile file;
+//   final String prompt;
+//   _IsolateRequest({
+//     required this.sendPort,
+//     required this.file,
+//     required this.prompt,
+//   });
+// }
+//
+// Future<void> _isolateUploadEntry(_IsolateRequest req) async {
+//   final response = await ApiService.uploadContractWithPrompt(
+//     selectedFile: req.file,
+//     promptText: req.prompt,
+//   );
+//   req.sendPort.send(response?.body ?? '');
+// }
+
+
+class ComputeRequest {
+  final Uint8List fileBytes;
+  final String fileName;
   final String prompt;
-  _IsolateRequest({
-    required this.sendPort,
-    required this.file,
+
+  ComputeRequest({
+    required this.fileBytes,
+    required this.fileName,
     required this.prompt,
   });
 }
 
-Future<void> _isolateUploadEntry(_IsolateRequest req) async {
-  final response = await ApiService.uploadContractWithPrompt(
-    selectedFile: req.file,
-    promptText: req.prompt,
-  );
-  req.sendPort.send(response?.body ?? '');
+Future<String> computeUpload(ComputeRequest req) async{
+  final file  = PlatformFile(name: req.fileName, size: req.fileBytes.length,bytes:req.fileBytes,);
+  final response = await ApiService.uploadContractWithPrompt(selectedFile: file, promptText: req.prompt);
+  return response?.body ?? '';
 }
+
