@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../widgets/contract_progress_bar.dart';
 import '../widgets/custom_navbar.dart';
 import '../widgets/navbar_page.dart';
 
-class SubmitPage extends StatefulWidget {
+final countdownProvider = StateProvider(<int>(ref)=>4);
+final showCountdownProvider = StateProvider(<int>(ref)=>false);
+
+class SubmitPage extends ConsumerStatefulWidget {
   final bool isOpportunityCreated;
   final List<String>? processingErrors;
 
@@ -14,22 +18,16 @@ class SubmitPage extends StatefulWidget {
   });
 
   @override
-  State<SubmitPage> createState() => _SubmitPageState();
+  ConsumerState<SubmitPage> createState() => _SubmitPageState();
 }
 
-class _SubmitPageState extends State<SubmitPage> {
-  int _countdown = 4;
-  bool _showCountdown = false;
-
+class _SubmitPageState extends ConsumerState<SubmitPage> {
   @override
   void initState() {
     super.initState();
-    // Start countdown after a brief delay to let the page render
     Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
-        setState(() {
-          _showCountdown = true;
-        });
+        ref.read(showCountdownProvider.notifier).state = true;
         _startCountdown();
       }
     });
@@ -39,18 +37,15 @@ class _SubmitPageState extends State<SubmitPage> {
     Future.delayed(const Duration(seconds: 1), () {
       if (!mounted) return;
 
-      setState(() {
-        _countdown--;
-      });
-
-      if (_countdown > 0) {
+      final current = ref.read(countdownProvider);
+      if (current > 1) {
+        ref.read(countdownProvider.notifier).state = current - 1;
         _startCountdown();
       } else {
-        // Navigate to editContractTimeline page when countdown reaches 0
         Navigator.pushNamedAndRemoveUntil(
           context,
           '/editContractTimeline',
-          (route) => false,
+              (route) => false,
         );
       }
     });
@@ -61,6 +56,8 @@ class _SubmitPageState extends State<SubmitPage> {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final successColor = Colors.green;
     final errorColor = Colors.red;
+    final countdown = ref.watch(countdownProvider);
+    final showCountdown = ref.watch(showCountdownProvider);
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -84,9 +81,7 @@ class _SubmitPageState extends State<SubmitPage> {
               ),
               child: Column(
                 children: [
-                  // Progress bar at the top
                   const ContractProgressBar(currentStep: 3),
-
                   Expanded(
                     child: SingleChildScrollView(
                       child: Padding(
@@ -99,10 +94,9 @@ class _SubmitPageState extends State<SubmitPage> {
                                 widget.isOpportunityCreated
                                     ? Icons.check_circle
                                     : Icons.error,
-                                color:
-                                    widget.isOpportunityCreated
-                                        ? successColor
-                                        : errorColor,
+                                color: widget.isOpportunityCreated
+                                    ? successColor
+                                    : errorColor,
                                 size: 60,
                               ),
                               const SizedBox(height: 20),
@@ -113,10 +107,9 @@ class _SubmitPageState extends State<SubmitPage> {
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color:
-                                      widget.isOpportunityCreated
-                                          ? successColor
-                                          : errorColor,
+                                  color: widget.isOpportunityCreated
+                                      ? successColor
+                                      : errorColor,
                                 ),
                                 textAlign: TextAlign.center,
                               ),
@@ -167,7 +160,7 @@ class _SubmitPageState extends State<SubmitPage> {
                                   Navigator.pushNamedAndRemoveUntil(
                                     context,
                                     '/contract',
-                                    (route) => false,
+                                        (route) => false,
                                   );
                                 },
                                 icon: const Icon(Icons.home),
@@ -199,7 +192,7 @@ class _SubmitPageState extends State<SubmitPage> {
                 ],
               ),
             ),
-            if (_showCountdown)
+            if (showCountdown)
               Center(
                 child: Container(
                   width: 100,
@@ -210,7 +203,7 @@ class _SubmitPageState extends State<SubmitPage> {
                   ),
                   child: Center(
                     child: Text(
-                      '$_countdown',
+                      '$countdown',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 48,
