@@ -1,307 +1,259 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-
+import 'package:table_calendar/table_calendar.dart';
 import '../widgets/custom_navbar.dart';
 import '../widgets/navbar_page.dart';
 
-class ContractAppointment {
-  final DateTime effectiveDate;
-  final String contractName;
+// ---------------------- MODEL ----------------------
+class ContractDateNote {
+  final DateTime date;
+  final String note;
 
-  ContractAppointment({
-    required this.effectiveDate,
-    required this.contractName,
-  });
+  ContractDateNote({required this.date, required this.note});
 }
 
-class CalendarNotifier extends StateNotifier<List<ContractAppointment>> {
-
-  CalendarNotifier():super([]){
-    _loadAppointments();
+// ---------------------- NOTIFIER ----------------------
+class CalendarNotifier extends StateNotifier<List<ContractDateNote>> {
+  CalendarNotifier() : super([]) {
+    _loadContracts();
   }
 
-  List<ContractAppointment> _allAppointments = [];
+  final Map<String, List<ContractDateNote>> _contractMap = {};
 
-
-  void _loadAppointments() {
-    _allAppointments = [
-      ContractAppointment(
-        effectiveDate: DateTime(2025, 8, 1),
-        contractName: 'Alpha Contract',
-      ),
-      ContractAppointment(
-        effectiveDate: DateTime(2025, 8, 3),
-        contractName: 'Beta Agreement',
-      ),
-      ContractAppointment(
-        effectiveDate: DateTime(2025, 8, 5),
-        contractName: 'Gamma Deal',
-      ),
-      ContractAppointment(
-        effectiveDate: DateTime(2025, 8, 7),
-        contractName: 'Alpha Contract',
-      ),
-      ContractAppointment(
-        effectiveDate: DateTime(2025, 8, 10),
-        contractName: 'Delta Transaction',
-      ),
-    ];
-    state = _allAppointments;
+  void _loadContracts() {
+    _contractMap.addAll({
+      'Contract #001': [
+        ContractDateNote(date: DateTime(2025, 7, 2), note: '📜 Effective Date'),
+        ContractDateNote(date: DateTime(2025, 7, 5), note: '💼 Escrow Date'),
+        ContractDateNote(date: DateTime(2025, 7, 10), note: '🏦 Loan Approval'),
+      ],
+      'Contract #002': [
+        ContractDateNote(date: DateTime(2025, 7, 4), note: '📜 Effective Date'),
+        ContractDateNote(date: DateTime(2025, 7, 6), note: '🏡 Site Visit'),
+      ],
+      'Contract #003': [
+        ContractDateNote(date: DateTime(2025, 7, 8), note: '📜 Effective Date'),
+      ],
+    });
+    state = [];
   }
 
-  void filterAppointments({String? contract, DateTime? date}) {
-    state = _allAppointments.where((a) {
-      final matchesContract = contract == null || a.contractName == contract;
-      final matchesDate = date == null ||
-          (a.effectiveDate.year == date.year &&
-              a.effectiveDate.month == date.month &&
-              a.effectiveDate.day == date.day);
-      return matchesContract && matchesDate;
-    }).toList();
+  void filterByContract(String? contractId) {
+    state = _contractMap[contractId] ?? [];
   }
 
-  void clearFilters() {
-    state = _allAppointments;
-  }
+  List<String> get contractNames => _contractMap.keys.toList();
 }
 
+// ---------------------- PROVIDERS ----------------------
 final calendarProvider =
-StateNotifierProvider<CalendarNotifier, List<ContractAppointment>>((ref) {
+StateNotifierProvider<CalendarNotifier, List<ContractDateNote>>((ref) {
   return CalendarNotifier();
 });
+final selectedContractProvider = StateProvider<String?>((ref) => null);
 
-final contractFilterProvider = StateProvider<String?>((ref) => null);
-final dateFilterProvider = StateProvider<DateTime?>((ref) => null);
-
-class CalendarPage extends ConsumerWidget {
+// ---------------------- MAIN WIDGET ----------------------
+class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CalendarPage> createState() => _CalendarPageState();
+}
+
+class _CalendarPageState extends ConsumerState<CalendarPage> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+
+  @override
+  Widget build(BuildContext context) {
     final appointments = ref.watch(calendarProvider);
+    final selectedContract = ref.watch(selectedContractProvider);
+    final contractList = ref.read(calendarProvider.notifier).contractNames;
+
+    if (appointments.isNotEmpty) {
+      _focusedDay = appointments
+          .map((e) => e.date)
+          .reduce((a, b) => a.isBefore(b) ? a : b);
+    }
+
+    final Map<DateTime, List<ContractDateNote>> groupedDates = {};
+    for (var note in appointments) {
+      final day = DateTime(note.date.year, note.date.month, note.date.day);
+      groupedDates.putIfAbsent(day, () => []).add(note);
+    }
 
     return Scaffold(
       appBar: const NavbarPage(),
       drawer: const CustomNavbar(),
-      body: SingleChildScrollView(
+      backgroundColor: const Color(0xFFF5F7FA),
+      body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '📅 Upcoming Contracts',
-              style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+            // -------------------- CONTRACT DROPDOWN --------------------
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: DropdownButtonFormField<String>(
+                value: selectedContract,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  contentPadding: EdgeInsets.symmetric(vertical: 18),
+                  border: InputBorder.none,
+                ),
+                hint: const Text(
+                  '🔍 Select Contract',
+                  style: TextStyle(fontSize: 16),
+                ),
+                items: contractList
+                    .map((name) =>
+                    DropdownMenuItem(value: name, child: Text(name)))
+                    .toList(),
+                onChanged: (val) {
+                  ref.read(selectedContractProvider.notifier).state = val;
+                  ref.read(calendarProvider.notifier).filterByContract(val);
+                },
+              ),
             ),
             const SizedBox(height: 20),
 
-            // Filters Section
-            _buildFilterSection(context, ref),
-            const SizedBox(height: 24),
-
-            if (appointments.isEmpty)
-              const Center(
-                  child: Text(
-                    'No contracts found for selected filters.',
-                    style: TextStyle(fontSize: 16),
-                  ))
-            else
-              ...appointments.map((a) => _buildCard(context, a)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterSection(BuildContext context, WidgetRef ref) {
-    final contractFilter = ref.watch(contractFilterProvider);
-    final dateFilter = ref.watch(dateFilterProvider);
-
-    final contractNames = [
-      ...{
-        for (var a in ref.read(calendarProvider.notifier)._allAppointments)
-          a.contractName
-      }
-    ];
-
-    final dateList = List.generate(
-      10,
-          (index) => DateTime(2025, 8, 1 + index),
-    );
-
-    return LayoutBuilder(builder: (context, constraints) {
-      final isMobile = constraints.maxWidth < 500;
-
-      return isMobile
-          ? Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildDropdown(
-            hint: 'Filter by Contract',
-            value: contractFilter,
-            items: contractNames,
-            onChanged: (val) {
-              ref.read(contractFilterProvider.notifier).state = val;
-              ref
-                  .read(calendarProvider.notifier)
-                  .filterAppointments(contract: val, date: dateFilter);
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildDateDropdown(
-            hint: 'Filter by Date',
-            value: dateFilter,
-            dates: dateList,
-            onChanged: (val) {
-              ref.read(dateFilterProvider.notifier).state = val;
-              ref
-                  .read(calendarProvider.notifier)
-                  .filterAppointments(contract: contractFilter, date: val);
-            },
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: () {
-              ref.read(contractFilterProvider.notifier).state = null;
-              ref.read(dateFilterProvider.notifier).state = null;
-              ref.read(calendarProvider.notifier).clearFilters();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey.shade300,
-              foregroundColor: Colors.black,
-            ),
-            child: const Text('Clear'),
-          ),
-        ],
-      )
-          : Row(
-        children: [
-          Expanded(
-            child: _buildDropdown(
-              hint: 'Filter by Contract',
-              value: contractFilter,
-              items: contractNames,
-              onChanged: (val) {
-                ref.read(contractFilterProvider.notifier).state = val;
-                ref.read(calendarProvider.notifier).filterAppointments(
-                  contract: val,
-                  date: dateFilter,
-                );
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: _buildDateDropdown(
-              hint: 'Filter by Date',
-              value: dateFilter,
-              dates: dateList,
-              onChanged: (val) {
-                ref.read(dateFilterProvider.notifier).state = val;
-                ref.read(calendarProvider.notifier).filterAppointments(
-                  contract: contractFilter,
-                  date: val,
-                );
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton(
-            onPressed: () {
-              ref.read(contractFilterProvider.notifier).state = null;
-              ref.read(dateFilterProvider.notifier).state = null;
-              ref.read(calendarProvider.notifier).clearFilters();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey.shade300,
-              foregroundColor: Colors.black,
-            ),
-            child: const Text('Clear'),
-          ),
-        ],
-      );
-    });
-  }
-
-  Widget _buildDropdown({
-    required String hint,
-    required String? value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return DropdownButtonFormField<String>(
-      isExpanded: true,
-      value: value,
-      hint: Text(hint),
-      decoration: InputDecoration(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      items: items.map((name) {
-        return DropdownMenuItem(value: name, child: Text(name));
-      }).toList(),
-      onChanged: onChanged,
-    );
-  }
-
-  Widget _buildDateDropdown({
-    required String hint,
-    required DateTime? value,
-    required List<DateTime> dates,
-    required ValueChanged<DateTime?> onChanged,
-  }) {
-    return DropdownButtonFormField<DateTime>(
-      isExpanded: true,
-      value: value,
-      hint: Text(hint),
-      decoration: InputDecoration(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      items: dates.map((date) {
-        return DropdownMenuItem(
-          value: date,
-          child: Text(DateFormat('dd MMM yyyy').format(date)),
-        );
-      }).toList(),
-      onChanged: onChanged,
-    );
-  }
-
-  Widget _buildCard(BuildContext context, ContractAppointment a) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.blue.shade100, Colors.blue.shade50],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.insert_drive_file_rounded,
-                size: 40, color: Colors.blue),
-            const SizedBox(width: 16),
+            // -------------------- MAIN LAYOUT --------------------
             Expanded(
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    a.contractName,
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
+                  // -------------------- CALENDAR --------------------
+                  Container(
+                    width: 300,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: TableCalendar(
+                      firstDay: DateTime(2020),
+                      lastDay: DateTime(2030),
+                      focusedDay: _focusedDay,
+                      calendarFormat: CalendarFormat.month,
+                      selectedDayPredicate: (d) => isSameDay(d, _selectedDay),
+                      eventLoader: (day) {
+                        return appointments
+                            .where((e) => isSameDay(e.date, day))
+                            .toList();
+                      },
+                      onDaySelected: (selected, focused) {
+                        setState(() {
+                          _selectedDay = selected;
+                          _focusedDay = focused;
+                        });
+                      },
+                      headerStyle: const HeaderStyle(
+                        formatButtonVisible: false,
+                        titleCentered: true,
+                        titleTextStyle: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      calendarStyle: CalendarStyle(
+                        todayDecoration: BoxDecoration(
+                          color: Colors.blue.shade400,
+                          shape: BoxShape.circle,
+                        ),
+                        selectedDecoration: const BoxDecoration(
+                          color: Colors.orange,
+                          shape: BoxShape.circle,
+                        ),
+                        markerDecoration: BoxDecoration(
+                          color: Colors.deepPurpleAccent.shade100,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Effective Date: ${DateFormat('dd MMM yyyy').format(a.effectiveDate)}',
-                    style:
-                    const TextStyle(fontSize: 14, color: Colors.black87),
+
+                  const SizedBox(width: 20),
+
+                  // -------------------- EVENT LIST --------------------
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: groupedDates.isEmpty
+                          ? const Center(
+                        child: Text(
+                          "😕 No events found for this contract",
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      )
+                          : ListView.builder(
+                        itemCount: groupedDates.length,
+                        itemBuilder: (context, index) {
+                          final date = groupedDates.keys.elementAt(index);
+                          final notes = groupedDates[date]!;
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 10),
+                                child: Text(
+                                  DateFormat('EEEE, MMM d, yyyy')
+                                      .format(date),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF333C4D),
+                                  ),
+                                ),
+                              ),
+                              ...notes.map(
+                                    (e) => Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10, horizontal: 12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: Colors.indigo,
+                                        width: 4,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.event_note,
+                                          color: Colors.indigo, size: 20),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Text(
+                                          e.note,
+                                          style: const TextStyle(
+                                              fontSize: 15,
+                                              color: Color(0xFF212121)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const Divider(
+                                  height: 24, thickness: 0.5),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
                   ),
                 ],
               ),
