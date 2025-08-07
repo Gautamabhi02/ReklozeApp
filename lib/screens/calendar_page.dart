@@ -389,6 +389,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       bool isToday, [
         bool isSelected = false,
       ]) {
+    // Get appointments from the provider
     final appointments = ref.watch(calendarProvider);
     final matches = appointments.where((e) => isSameDay(e.date, day)).toList();
     final isMobile = MediaQuery.of(context).size.width < 768;
@@ -416,57 +417,63 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               : Colors.white,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '${day.day}',
-              style: TextStyle(
-                fontSize: isMobile ? 14 : 16,
-                fontWeight: FontWeight.bold,
-                color: isSelected ? Colors.white : Colors.black,
+        child: ClipRRect(  // Added to prevent overflow visuals
+          borderRadius: BorderRadius.circular(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,  // Constrains column size
+            children: [
+              Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: isMobile ? 14 : 16,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : Colors.black,
+                ),
               ),
-            ),
-            if (matches.isNotEmpty)
-              Column(
-                children: matches.take(2).map((e) {
-                  final color = _getNoteColor(e.note);
-                  return Tooltip(
-                    message: e.note,
-                    child: Container(
-                      margin: const EdgeInsets.only(top: 2),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 2,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? color.withOpacity(0.8)
-                            : color.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        e.note.split(' ').first,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: isMobile ? 10 : 8,
-                          color: isSelected ? Colors.white : color,
-                          height: 1.1,
-                          fontWeight: FontWeight.w600,
+              if (matches.isNotEmpty)
+                SizedBox(  // Constrained container for events
+                  height: 24,  // Fixed height
+                  child: ListView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    padding: EdgeInsets.zero,
+                    children: matches.take(2).map((e) {
+                      final color = _getNoteColor(e.note);
+                      return Tooltip(
+                        message: e.note,
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 2,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? color.withOpacity(0.8)
+                                : color.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            e.note.split(' ').first,
+                            style: TextStyle(
+                              fontSize: isMobile ? 10 : 8,
+                              color: isSelected ? Colors.white : color,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-          ],
+                      );
+                    }).toList(),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
-
   Widget _buildEventList(Map<DateTime, List<ContractDateNote>> groupedDates) {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
