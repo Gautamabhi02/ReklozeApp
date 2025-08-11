@@ -15,6 +15,10 @@ class _SignupPageState extends State<SignupPage> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _middleNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+
   bool _isLoading = false;
   bool _obscurePassword = true;
 
@@ -24,23 +28,27 @@ class _SignupPageState extends State<SignupPage> {
 
       try {
         final model = SignupModel(
-          name: _usernameController.text.trim(),
+          userName: _usernameController.text.trim(),
+          firstName: _firstNameController.text.trim(),
+          middleName: _middleNameController.text.trim().isEmpty
+              ? null
+              : _middleNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
         final result = await ApiService().signup(model);
+
+        if (!mounted) return;
+
+        // Remove any old banners first
+        ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+
         if (result == null) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Server unreachable or slow network. Please try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          _showTopError('Server unreachable or slow network. Please try again.');
           return;
         }
-        if (!mounted) return;
 
         if (result) {
           Navigator.pushReplacement(
@@ -48,12 +56,7 @@ class _SignupPageState extends State<SignupPage> {
             MaterialPageRoute(builder: (context) => const HomePage()),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Signup failed. Please try again.'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          _showTopError('Signup failed. Please try again.');
         }
       } finally {
         if (mounted) {
@@ -61,6 +64,52 @@ class _SignupPageState extends State<SignupPage> {
         }
       }
     }
+  }
+
+// Helper to show a red banner at top
+  void _showTopError(String message) {
+    ScaffoldMessenger.of(context).showMaterialBanner(
+      MaterialBanner(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.red.shade600,
+        leading: const Icon(Icons.error_outline, color: Colors.white),
+        actions: [
+          TextButton(
+            onPressed: () => ScaffoldMessenger.of(context).hideCurrentMaterialBanner(),
+            child: const Text('DISMISS', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    // Auto-dismiss after 3 seconds
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
+      }
+    });
+  }
+
+  InputDecoration _inputDecoration(String label, String hint, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      prefixIcon: Icon(icon),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    );
   }
 
   @override
@@ -79,7 +128,7 @@ class _SignupPageState extends State<SignupPage> {
             ),
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: isSmallScreen ? double.infinity : 500,
+                maxWidth: isSmallScreen ? double.infinity : 600,
               ),
               child: Card(
                 elevation: 1,
@@ -93,7 +142,6 @@ class _SignupPageState extends State<SignupPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Logo/Icon Section
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -106,10 +154,7 @@ class _SignupPageState extends State<SignupPage> {
                             color: Colors.blue.shade700,
                           ),
                         ),
-
                         const SizedBox(height: 24),
-
-                        // Title Section
                         Text(
                           "Create Account",
                           style: TextStyle(
@@ -118,9 +163,7 @@ class _SignupPageState extends State<SignupPage> {
                             color: Colors.blue.shade800,
                           ),
                         ),
-
                         const SizedBox(height: 8),
-
                         Text(
                           "Join us to get started",
                           style: TextStyle(
@@ -128,62 +171,111 @@ class _SignupPageState extends State<SignupPage> {
                             color: Colors.grey.shade600,
                           ),
                         ),
-
                         const SizedBox(height: 32),
 
-                        // Username Field
+                        // Username
                         TextFormField(
                           controller: _usernameController,
-                          decoration: InputDecoration(
-                            labelText: 'Username',
-                            hintText: 'Enter your username',
-                            prefixIcon: const Icon(Icons.person_outline),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
-                          ),
+                          decoration: _inputDecoration('Username', 'Enter your username', Icons.person_outline),
                           validator: (value) =>
                           value!.isEmpty ? 'Please enter a username' : null,
-                        ),
+                          onChanged: (_) {
+                            if (_formKey.currentState != null) {
+                              _formKey.currentState!
+                                  .validate(); // force re-check so error clears instantly
+                            }
 
+                          },
+                        ),
                         const SizedBox(height: 20),
 
-                        // Email Field
+                        // First/Middle/Last in Row for large screen
+                        isSmallScreen
+                            ? Column(
+                          children: [
+                            TextFormField(
+                              controller: _firstNameController,
+                              decoration: _inputDecoration('First Name', 'Enter your first name', Icons.account_circle_outlined),
+                              validator: (value) =>
+                              value!.isEmpty ? 'First name is required' : null,
+                              onChanged: (_) {
+                                if (_formKey.currentState != null) {
+                                  _formKey.currentState!
+                                      .validate();
+                                }
+
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              controller: _middleNameController,
+                              decoration: _inputDecoration('Middle Name (optional)', '', Icons.person_outline),
+                            ),
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              controller: _lastNameController,
+                              decoration: _inputDecoration('Last Name', 'Enter your last name', Icons.person_outline),
+                              validator: (value) =>
+                              value!.isEmpty ? 'Last name is required' : null,
+                              onChanged: (_) {
+                                if (_formKey.currentState != null) {
+                                  _formKey.currentState!
+                                      .validate();
+                                }
+
+                              },
+                            ),
+                          ],
+                        )
+                            : Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _firstNameController,
+                                decoration: _inputDecoration('First Name', 'First name', Icons.account_circle_outlined),
+                                validator: (value) =>
+                                value!.isEmpty ? 'First name required' : null,
+                                onChanged: (_) {
+                                  if (_formKey.currentState != null) {
+                                    _formKey.currentState!
+                                        .validate();
+                                  }
+
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _middleNameController,
+                                decoration: _inputDecoration('Middle Name', '', Icons.person_outline),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _lastNameController,
+                                decoration: _inputDecoration('Last Name', 'Last name', Icons.person_outline),
+                                validator: (value) =>
+                                value!.isEmpty ? 'Last name required' : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Email
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
-                          decoration: InputDecoration(
-                            labelText: 'Email',
-                            hintText: 'Enter your email',
-                            prefixIcon: const Icon(Icons.email_outlined),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
+                          autovalidateMode: AutovalidateMode.onUserInteraction, // validate while typing
+                          decoration: _inputDecoration(
+                            'Email',
+                            'Enter your email',
+                            Icons.email_outlined,
                           ),
                           validator: (value) {
-                            if (value!.isEmpty) {
+                            if (value == null || value.isEmpty) {
                               return 'Please enter an email';
                             }
                             if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
@@ -192,23 +284,23 @@ class _SignupPageState extends State<SignupPage> {
                             }
                             return null;
                           },
+                          onChanged: (_) => _formKey.currentState?.validate(), // force refresh
                         ),
-
                         const SizedBox(height: 20),
 
-                        // Password Field
+                        // Password
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
-                          decoration: InputDecoration(
-                            labelText: 'Password',
-                            hintText: 'Enter your password',
-                            prefixIcon: const Icon(Icons.lock_outline),
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
+                          decoration: _inputDecoration(
+                            'Password',
+                            'Enter your password',
+                            Icons.lock_outline,
+                          ).copyWith(
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility,
+                                _obscurePassword ? Icons.visibility_off : Icons.visibility,
                                 color: Colors.grey,
                               ),
                               onPressed: () {
@@ -217,23 +309,9 @@ class _SignupPageState extends State<SignupPage> {
                                 });
                               },
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.grey.shade300),
-                            ),
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 14,
-                            ),
                           ),
                           validator: (value) {
-                            if (value!.isEmpty) {
+                            if (value == null || value.isEmpty) {
                               return 'Please enter a password';
                             }
                             if (value.length < 6) {
@@ -241,6 +319,7 @@ class _SignupPageState extends State<SignupPage> {
                             }
                             return null;
                           },
+                          onChanged: (_) => _formKey.currentState?.validate(),
                         ),
 
                         const SizedBox(height: 24),
@@ -274,12 +353,10 @@ class _SignupPageState extends State<SignupPage> {
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
                                 color: Colors.white,
-                                height: 1.2,
                               ),
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 24),
 
                         // Login Link
@@ -294,11 +371,7 @@ class _SignupPageState extends State<SignupPage> {
                               ),
                             ),
                             GestureDetector(
-                              onTap: _isLoading
-                                  ? null
-                                  : () {
-                                Navigator.pop(context);
-                              },
+                              onTap: _isLoading ? null : () => Navigator.pop(context),
                               child: Text(
                                 "Login",
                                 style: TextStyle(

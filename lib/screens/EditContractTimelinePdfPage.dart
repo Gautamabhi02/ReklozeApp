@@ -1967,7 +1967,7 @@ class _EditContractTimelinePdfPageState
                     shadowColor: Colors.black.withOpacity(0.16),
                   ),
                   child: Text(
-                    'Download Timeline PDF',
+                    'Download Timeline (PDF)',
                     style: TextStyle(
                       fontSize: isMobile ? 16 : 18,
                       fontWeight: FontWeight.w500,

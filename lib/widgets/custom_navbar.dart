@@ -13,9 +13,13 @@ class CustomNavbar extends StatelessWidget {
     final session = UserSessionService();
 
     final username = session.username?.isNotEmpty==true ? session.username
-        :'Add username here';
+        :'';
     final email = session.email?.isNotEmpty==true ? session.email
-        :'Add email here';
+        :'';
+
+    print('username:$username');
+
+    print('Email:$email');
 
     return Drawer(
       child: Column(

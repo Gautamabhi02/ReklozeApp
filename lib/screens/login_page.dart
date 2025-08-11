@@ -198,6 +198,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           validator: (value) =>
                           value!.isEmpty ? 'Enter username' : null,
+                          onChanged: (_) => _formKey.currentState?.validate(),
                         ),
 
                         const SizedBox(height: 20),
@@ -206,6 +207,7 @@ class _LoginPageState extends State<LoginPage> {
                         TextFormField(
                           controller: _passwordController,
                           obscureText: _obscurePassword,
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                           decoration: InputDecoration(
                             labelText: 'Password',
                             prefixIcon: const Icon(Icons.lock_outline),
@@ -239,6 +241,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           validator: (value) =>
                           value!.isEmpty ? 'Enter password' : null,
+                          onChanged: (_) => _formKey.currentState?.validate(),
                         ),
 
                         const SizedBox(height: 16),

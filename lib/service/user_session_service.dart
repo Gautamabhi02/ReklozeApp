@@ -116,12 +116,12 @@ class UserSessionService {
     if (_token != null) {
       final decoded = JwtDecoder.decode(_token!);
       _userId = _tryParseInt(decoded['userId']);
-      _username = decoded['name']?.toString();
+      _username = decoded['UserName']?.toString();
       _email = decoded['email']?.toString();
       _isActive = _tryParseBool(decoded['isActive']);
     } else {
       _userId = _tryParseInt(data['userId']);
-      _username = data['name']?.toString();
+      _username = data['UserName']?.toString();
       _email = data['email']?.toString();
       _isActive = _tryParseBool(data['isActive']);
     }
