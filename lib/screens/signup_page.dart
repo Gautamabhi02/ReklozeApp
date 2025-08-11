@@ -12,12 +12,20 @@ class SignupPage extends StatefulWidget {
 
 class _SignupPageState extends State<SignupPage> {
   final _formKey = GlobalKey<FormState>();
+
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _firstNameController = TextEditingController();
   final _middleNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+
+  final _usernameFieldKey = GlobalKey<FormFieldState>();
+  final _firstNameFieldKey = GlobalKey<FormFieldState>();
+  final _lastNameFieldKey = GlobalKey<FormFieldState>();
+  final _emailFieldKey = GlobalKey<FormFieldState>();
+  final _passwordFieldKey = GlobalKey<FormFieldState>();
+
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -175,16 +183,13 @@ class _SignupPageState extends State<SignupPage> {
 
                         // Username
                         TextFormField(
+                          key: _usernameFieldKey,
                           controller: _usernameController,
                           decoration: _inputDecoration('Username', 'Enter your username', Icons.person_outline),
                           validator: (value) =>
                           value!.isEmpty ? 'Please enter a username' : null,
                           onChanged: (_) {
-                            if (_formKey.currentState != null) {
-                              _formKey.currentState!
-                                  .validate(); // force re-check so error clears instantly
-                            }
-
+                          _usernameFieldKey.currentState?.validate();
                           },
                         ),
                         const SizedBox(height: 20),
@@ -194,17 +199,14 @@ class _SignupPageState extends State<SignupPage> {
                             ? Column(
                           children: [
                             TextFormField(
+                              key: _firstNameFieldKey,
                               controller: _firstNameController,
                               decoration: _inputDecoration('First Name', 'Enter your first name', Icons.account_circle_outlined),
                               validator: (value) =>
                               value!.isEmpty ? 'First name is required' : null,
                               onChanged: (_) {
-                                if (_formKey.currentState != null) {
-                                  _formKey.currentState!
-                                      .validate();
-                                }
-
-                              },
+                                 _firstNameFieldKey.currentState?.validate();
+                                },
                             ),
                             const SizedBox(height: 20),
                             TextFormField(
@@ -213,16 +215,13 @@ class _SignupPageState extends State<SignupPage> {
                             ),
                             const SizedBox(height: 20),
                             TextFormField(
+                              key: _lastNameFieldKey,
                               controller: _lastNameController,
                               decoration: _inputDecoration('Last Name', 'Enter your last name', Icons.person_outline),
                               validator: (value) =>
                               value!.isEmpty ? 'Last name is required' : null,
                               onChanged: (_) {
-                                if (_formKey.currentState != null) {
-                                  _formKey.currentState!
-                                      .validate();
-                                }
-
+                                _lastNameFieldKey.currentState?.validate();
                               },
                             ),
                           ],
@@ -231,16 +230,13 @@ class _SignupPageState extends State<SignupPage> {
                           children: [
                             Expanded(
                               child: TextFormField(
+                                key: _firstNameFieldKey,
                                 controller: _firstNameController,
                                 decoration: _inputDecoration('First Name', 'First name', Icons.account_circle_outlined),
                                 validator: (value) =>
                                 value!.isEmpty ? 'First name required' : null,
                                 onChanged: (_) {
-                                  if (_formKey.currentState != null) {
-                                    _formKey.currentState!
-                                        .validate();
-                                  }
-
+                                  _firstNameFieldKey.currentState?.validate();
                                 },
                               ),
                             ),
@@ -254,10 +250,14 @@ class _SignupPageState extends State<SignupPage> {
                             const SizedBox(width: 12),
                             Expanded(
                               child: TextFormField(
+                                key: _lastNameFieldKey,
                                 controller: _lastNameController,
                                 decoration: _inputDecoration('Last Name', 'Last name', Icons.person_outline),
                                 validator: (value) =>
                                 value!.isEmpty ? 'Last name required' : null,
+                                onChanged: (_) {
+                                  _lastNameFieldKey.currentState?.validate();
+                                },
                               ),
                             ),
                           ],
@@ -266,6 +266,7 @@ class _SignupPageState extends State<SignupPage> {
 
                         // Email
                         TextFormField(
+                          key: _emailFieldKey,
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           autovalidateMode: AutovalidateMode.onUserInteraction, // validate while typing
@@ -284,12 +285,15 @@ class _SignupPageState extends State<SignupPage> {
                             }
                             return null;
                           },
-                          onChanged: (_) => _formKey.currentState?.validate(), // force refresh
+                          onChanged: (_) {
+                            _lastNameFieldKey.currentState?.validate();
+                          },
                         ),
                         const SizedBox(height: 20),
 
                         // Password
                         TextFormField(
+                          key: _passwordFieldKey,
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -319,7 +323,9 @@ class _SignupPageState extends State<SignupPage> {
                             }
                             return null;
                           },
-                          onChanged: (_) => _formKey.currentState?.validate(),
+                          onChanged: (_) {
+                            _emailFieldKey.currentState?.validate();
+                          },
                         ),
 
                         const SizedBox(height: 24),
