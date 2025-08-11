@@ -17,6 +17,11 @@ class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+
+  final _usernameFieldKey = GlobalKey<FormFieldState>();
+  final _passwordFieldKey = GlobalKey<FormFieldState>();
+
+
   bool _isLoading = false;
   bool _obscurePassword = true;
 
@@ -177,6 +182,7 @@ class _LoginPageState extends State<LoginPage> {
 
                         // Username Field
                         TextFormField(
+                          key:_usernameFieldKey,
                           controller: _usernameController,
                           decoration: InputDecoration(
                             labelText: 'Username',
@@ -198,13 +204,14 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           validator: (value) =>
                           value!.isEmpty ? 'Enter username' : null,
-                          onChanged: (_) => _formKey.currentState?.validate(),
+                          onChanged: (_) => _usernameFieldKey.currentState?.validate(),
                         ),
 
                         const SizedBox(height: 20),
 
                         // Password Field
                         TextFormField(
+                          key:_passwordFieldKey,
                           controller: _passwordController,
                           obscureText: _obscurePassword,
                           autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -241,7 +248,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           validator: (value) =>
                           value!.isEmpty ? 'Enter password' : null,
-                          onChanged: (_) => _formKey.currentState?.validate(),
+                          onChanged: (_) => _passwordFieldKey.currentState?.validate(),
                         ),
 
                         const SizedBox(height: 16),
