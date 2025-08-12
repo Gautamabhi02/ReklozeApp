@@ -17,6 +17,12 @@ class UserSessionService {
   static const _usernameKey = 'username';
   static const _emailKey = 'email';
   static const _isActiveKey = 'is_active';
+  static const _firstNameKey = 'first_name';
+  static const _lastNameKey = 'last_name';
+  static const _middleNameKey = 'middle_name';
+
+  static const _paymentStatusKey = 'payment_status';
+
 
   factory UserSessionService() => _instance;
 
@@ -27,6 +33,13 @@ class UserSessionService {
   String? _username;
   String? _email;
   bool? _isActive;
+
+  String? _firstName;
+  String? _lastName;
+  String? _middleName;
+
+  String? _paymentStatus;
+
 
   // Initialize storage
   Future<void> initialize() async {
@@ -48,6 +61,11 @@ class UserSessionService {
     _email = await _readFromStorage(_emailKey);
     final isActiveStr = await _readFromStorage(_isActiveKey);
     _isActive = isActiveStr != null ? isActiveStr.toLowerCase() == 'true' : null;
+    _firstName = await _readFromStorage(_firstNameKey);
+    _lastName = await _readFromStorage(_lastNameKey);
+    _middleName = await _readFromStorage(_middleNameKey);
+    _paymentStatus = await _readFromStorage(_paymentStatusKey);
+
   }
 
   Future<String?> _readFromStorage(String key) async {
@@ -85,6 +103,11 @@ class UserSessionService {
   bool? get isActive => _isActive;
   bool get isLoggedIn => _token != null && _isActive == true;
 
+  String? get firstName => _firstName;
+  String? get lastName => _lastName;
+  String? get middleName => _middleName;
+  String? get paymentStatus => _paymentStatus;
+
   Map<String, dynamic> decodeToken(String token) {
     try {
       if (token.isEmpty) {
@@ -119,17 +142,35 @@ class UserSessionService {
       _username = decoded['UserName']?.toString();
       _email = decoded['email']?.toString();
       _isActive = _tryParseBool(decoded['isActive']);
+
+      _firstName = decoded['firstName']?.toString();
+      _lastName = decoded['lastName']?.toString();
+      _middleName = decoded['middleName']?.toString();
+
+      await _writeToStorage(_paymentStatusKey, _paymentStatus);
     } else {
       _userId = _tryParseInt(data['userId']);
       _username = data['UserName']?.toString();
       _email = data['email']?.toString();
       _isActive = _tryParseBool(data['isActive']);
+
+      _firstName = data['firstName']?.toString();
+      _lastName = data['lastName']?.toString();
+      _middleName = data['middleName']?.toString();
+
+
     }
 
     await _writeToStorage(_userIdKey, _userId?.toString());
     await _writeToStorage(_usernameKey, _username);
     await _writeToStorage(_emailKey, _email);
     await _writeToStorage(_isActiveKey, _isActive?.toString());
+
+    await _writeToStorage(_firstNameKey, _firstName);
+    await _writeToStorage(_lastNameKey, _lastName);
+    await _writeToStorage(_middleNameKey, _middleName);
+
+    await _writeToStorage(_paymentStatusKey, _paymentStatus);
   }
 
   Future<void> setAuthToken(String token) async {
@@ -144,11 +185,22 @@ class UserSessionService {
     _email = null;
     _isActive = null;
 
+    _firstName = null;
+    _lastName = null;
+    _middleName = null;
+
+    _paymentStatus = null;
     await _writeToStorage(_tokenKey, null);
     await _writeToStorage(_userIdKey, null);
     await _writeToStorage(_usernameKey, null);
     await _writeToStorage(_emailKey, null);
     await _writeToStorage(_isActiveKey, null);
+
+    await _writeToStorage(_firstNameKey, null);
+    await _writeToStorage(_lastNameKey, null);
+    await _writeToStorage(_middleNameKey, null);
+
+    await _writeToStorage(_paymentStatusKey, null);
   }
 
   // Helper methods

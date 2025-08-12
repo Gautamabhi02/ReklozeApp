@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_page.dart';
 import '../api/api_service.dart';
 import '../models/signup_model.dart';
+import 'login_page.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -61,7 +62,7 @@ class _SignupPageState extends State<SignupPage> {
         if (result) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const HomePage()),
+            MaterialPageRoute(builder: (context) => const LoginPage()),
           );
         } else {
           _showTopError('Signup failed. Please try again.');

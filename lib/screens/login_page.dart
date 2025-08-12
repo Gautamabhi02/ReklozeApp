@@ -67,16 +67,17 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
   }
-  
+
   void _navigateBasedOnUserStatus(Map<String, dynamic> userData) {
     final paymentStatus = userData['paymentStatus']?.toString().toLowerCase();
-    final route = paymentStatus == 'success'
-        ? const UploadContractPage()
-        : const HomePage();
 
-    Navigator.pushNamedAndRemoveUntil(context, '/contract', (route) => false);
-
+    if (paymentStatus == 'notpaid') {
+      Navigator.pushNamedAndRemoveUntil(context, '/homePage', (route) => false);
+    } else {
+      Navigator.pushNamedAndRemoveUntil(context, '/contract', (route) => false);
+    }
   }
+
   void _showTopPopup(String message, Color color) {
     final overlay = Overlay.of(context);
     final overlayEntry = OverlayEntry(

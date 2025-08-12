@@ -564,7 +564,7 @@ class _UploadContractPageState extends State<UploadContractPage> {
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: 500,
-                  minHeight: constraints.maxHeight,
+                  // minHeight: constraints.maxHeight,
                 ),
                 child: IntrinsicHeight(
                   child: Column(

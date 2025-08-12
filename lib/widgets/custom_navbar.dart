@@ -12,14 +12,18 @@ class CustomNavbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = UserSessionService();
 
-    final username = session.username?.isNotEmpty==true ? session.username
-        :'';
-    final email = session.email?.isNotEmpty==true ? session.email
-        :'';
+    final firstName = session.firstName?.trim() ?? '';
+    final middleName = session.middleName?.trim() ?? '';
+    final lastName = session.lastName?.trim() ?? '';
+    final username = session.username?.trim() ?? '';
+    final email = session.email?.trim() ?? '';
 
-    print('username:$username');
+    final paymentStatus = session.paymentStatus?.toLowerCase() ?? 'notpaid';
 
-    print('Email:$email');
+
+    final fullName = [firstName, middleName, lastName]
+        .where((name) => name.isNotEmpty)
+        .join(' ');
 
     return Drawer(
       child: Column(
@@ -28,18 +32,23 @@ class CustomNavbar extends StatelessWidget {
             children: [
               UserAccountsDrawerHeader(
                 decoration: const BoxDecoration(color: Colors.blue),
-                accountName:  Text(username ?? ''),
-                accountEmail: Text(email ?? ''),
-                currentAccountPicture: const CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, size: 40, color: Colors.blue),
+                accountName: Text(fullName),
+                accountEmail: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (username.isNotEmpty)
+                      Text('@$username', style: const TextStyle(fontSize: 12)),
+                    if (email.isNotEmpty)
+                      Text(email, style: const TextStyle(fontSize: 12)),
+                  ],
                 ),
+                // currentAccountPicture removed as requested
               ),
               Positioned(
                 right: 8,
                 top: 8,
                 child: GestureDetector(
-                  onTap: () => Navigator.pop(context), // Closes the drawer
+                  onTap: () => Navigator.pop(context),
                   child: const Icon(Icons.close, color: Colors.white),
                 ),
               ),
@@ -48,11 +57,12 @@ class CustomNavbar extends StatelessWidget {
           Expanded(
             child: ListView(
               children: [
-                ListTile(
-                  leading: const Icon(Icons.home),
-                  title: const Text('Home'),
-                  onTap: () => _navigateTo(context, '/homePage'),
-                ),
+                if (paymentStatus == 'notpaid') // Only show if not paid
+                  ListTile(
+                    leading: const Icon(Icons.home),
+                    title: const Text('Home'),
+                    onTap: () => _navigateTo(context, '/homePage'),
+                  ),
                 ListTile(
                   leading: const Icon(Icons.upload_file),
                   title: const Text('Upload'),
