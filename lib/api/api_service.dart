@@ -183,6 +183,47 @@ class ApiService {
       return null;
     }
   }
+
+  static Future<http.Response?> saveOpportunity(
+      String userId,
+      String opportunityId,
+      String opportunityName
+      ) async {
+    try {
+      final url = Uri.parse('${Env.baseUrl}/UserOpportunity/save');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'userOppId': 0,
+          'userId': int.tryParse(userId) ?? 0,
+          'oppurtunityId': opportunityId,
+          'oppurtunityName': opportunityName,
+        }),
+      );
+      return response;
+    } catch (e) {
+      print('Error saving opportunity: $e');
+      return null;
+    }
+  }
+
+  static Future<http.Response?> getOpportunitiesByUserId(String userId) async {
+    try {
+      final url = Uri.parse('${Env.baseUrl}/UserOpportunity/list?userId=$userId');
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+      return response;
+    } catch (e) {
+      print('Error getting opportunities: $e');
+      return null;
+    }
+  }
+
+
+
 }
 
 

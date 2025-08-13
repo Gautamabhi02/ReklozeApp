@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,8 @@ import 'package:rekloze/screens/submit_page.dart';
 import '../api/ApplynxService.dart';
 import 'package:pdfx/pdfx.dart';
 
+import '../api/api_service.dart';
+import '../service/user_session_service.dart';
 import '../widgets/contract_progress_bar.dart';
 
 class ReviewPage extends StatefulWidget {
@@ -54,8 +57,7 @@ class _ReviewPageState extends State<ReviewPage> {
 
   final TextEditingController buyerAgentController = TextEditingController();
   final TextEditingController escrowAgentController = TextEditingController();
-  final TextEditingController propertyAddressController =
-      TextEditingController();
+  final TextEditingController propertyAddressController = TextEditingController();
 
   String sellerName = '';
   String sellerAgentName = '';
@@ -98,6 +100,9 @@ class _ReviewPageState extends State<ReviewPage> {
   bool firstNameTouched = false;
   bool lastNameTouched = false;
   bool emailTouched = false;
+
+  String? opportunityName;
+  String? opportunityId;
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
@@ -624,6 +629,11 @@ class _ReviewPageState extends State<ReviewPage> {
     await Future.delayed(Duration(milliseconds: 100));
     try {
 
+      final userSession = UserSessionService();
+      await userSession.initialize();
+      final userId = userSession.userId?.toString() ?? '';
+
+
       final lastContractResponse = await apiService.getLastContractNumber();
       final lastContractStr = lastContractResponse['value'] ?? "Contract 0000";
       final numericPart = lastContractStr.replaceAll(RegExp(r'[^0-9]'), '');
@@ -635,6 +645,8 @@ class _ReviewPageState extends State<ReviewPage> {
       final allContacts = _prepareContacts(contractTag, newContractNumber!);
       totalApiCalls = allContacts.length;
       completedApiCalls = 0;
+
+
 
       for (final contact in allContacts) {
         try {
@@ -665,6 +677,29 @@ class _ReviewPageState extends State<ReviewPage> {
       }
 
       await apiService.updateCustomValue('Contract $newContractNumber');
+
+      if (oppCreated && opportunityName != null && opportunityId != null) {
+        print('Saving opportunity: $opportunityName');
+        try {
+          final saveResponse = await ApiService.saveOpportunity(
+              userId,
+              opportunityId as String,
+              opportunityName!
+          );
+
+          print('API Response: ${saveResponse?.statusCode}');
+          print('Response body: ${saveResponse?.body}');
+
+          if (saveResponse?.statusCode != 200) {
+            processingErrors.add('Failed to save opportunity: ${saveResponse?.body}');
+          }
+        } catch (e, stack) {
+          print('Full error: $e\n$stack');
+          processingErrors.add('Error saving opportunity: $e');
+        }
+      } else {
+        print('Not saving opportunity - oppCreated: $oppCreated, opportunityId: $opportunityId, opportunityName: $opportunityName');
+      }
 
       Navigator.push(
         context,
@@ -850,27 +885,34 @@ class _ReviewPageState extends State<ReviewPage> {
     String firstName,
   ) async {
     opportunityCustomFields = _prepareOpportunityFields(newContractNumber);
+    final random=Random();
+    final randomNumber = random.nextInt(9000)+1000;
+
+    final opportunityNewName =
+        'Contract #$newContractNumber - ${propertyAddressController.text.isNotEmpty ? propertyAddressController.text : "Default Name"} rekloze$randomNumber';
+
 
     final opportunityData = {
       'pipelineId': "B2abziQpwJBYSr4qzopT",
       'locationId': apiService.locationId,
       'contactId': contactId,
-      'name':
-          'Contract #$newContractNumber - ${propertyAddressController.text.isNotEmpty ? propertyAddressController.text : "Default Name"}',
+      'name':opportunityNewName,
       'customFields': opportunityCustomFields,
     };
 
     final opportunityResponse = await apiService.upsertOpportunity(
       opportunityData,
     );
-    final opportunityId = opportunityResponse['opportunity']['id'];
-    final opportunityName = opportunityData['name'];
+     opportunityId = opportunityResponse['opportunity']['id'];
+     opportunityName = opportunityData['name'] as String;
 
     await apiService.updateContactCustomFields(contactId, [
       {'key': 'oppurtunityid', 'value': opportunityId},
       {'key': 'oppurtunityname', 'value': opportunityName},
     ]);
   }
+
+
 
   List<Map<String, dynamic>> _prepareOpportunityFields(
     String newContractNumber,

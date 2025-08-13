@@ -1616,34 +1616,7 @@ class _EditContractTimelinePdfPageState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Header
-                      // Text(
-                      //   'Contract Dates',
-                      //   style: TextStyle(
-                      //     fontWeight: FontWeight.bold,
-                      //     fontSize: isMobile ? 16 : 18,
-                      //     color: Colors.black87,
-                      //   ),
-                      // ),
-                      // SizedBox(height: 12),
-
-                      // // Property Address (editable)
-                      // TextFormField(
-                      //   decoration: InputDecoration(
-                      //     border: InputBorder.none,
-                      //     isDense: true,
-                      //     contentPadding: EdgeInsets.all(0),
-                      //   ),
-                      //   style: tableCellTextStyle,
-                      //   onChanged: (value) {
-                      //     setState(() {
-                      //       introText = 'We are pleased to announce... $value...';
-                      //     });
-                      //   },
-                      // ),
                       SizedBox(height: 10),
-
-                      // Timeline Table
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Container(
