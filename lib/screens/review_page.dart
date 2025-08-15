@@ -150,7 +150,7 @@ class _ReviewPageState extends State<ReviewPage> {
 
   void _loadPdf() async {
     if (widget.pdfFile == null || widget.pdfFile!.isEmpty) {
-      debugPrint('PDF file is null or empty');
+      // debugPrint('PDF file is null or empty');
       setState(() => _isPdfReady = false);
       return;
     }
@@ -170,7 +170,7 @@ class _ReviewPageState extends State<ReviewPage> {
         );
 
         await file.writeAsBytes(widget.pdfFile!, flush: true);
-        debugPrint('PDF saved to: ${file.path}');
+        // debugPrint('PDF saved to: ${file.path}');
 
         pdfController = PdfController(
           document: PdfDocument.openFile(file.path),
@@ -182,8 +182,6 @@ class _ReviewPageState extends State<ReviewPage> {
         });
       }
     } catch (e, stack) {
-      debugPrint('Error loading PDF: $e');
-      debugPrint('Stack trace: $stack');
       setState(() {
         _isPdfReady = false;
         _showError = true;
@@ -366,9 +364,9 @@ class _ReviewPageState extends State<ReviewPage> {
         final date = _tryParseDate(value);
         if (date != null) {
           dateFields['Effective Date'] = date;
-          debugPrint('Parsed effective date from contract: $date');
+          // debugPrint('Parsed effective date from contract: $date');
         } else {
-          debugPrint('Could not parse effective date from: $value');
+          // debugPrint('Could not parse effective date from: $value');
         }
       }
     }
@@ -646,15 +644,13 @@ class _ReviewPageState extends State<ReviewPage> {
       totalApiCalls = allContacts.length;
       completedApiCalls = 0;
 
-
-
       for (final contact in allContacts) {
         try {
           final contactResponse = await apiService.upsertContact(
             contact['data'],
           );
           final contactId = contactResponse['contact']['id'];
-
+          print("========================My contact Id====================== $contactId");
           if (contact['isFirstBuyer'] && !oppCreated) {
             await _createOpportunityAndUpdateContact(
               contactId,
@@ -687,8 +683,8 @@ class _ReviewPageState extends State<ReviewPage> {
               opportunityName!
           );
 
-          print('API Response: ${saveResponse?.statusCode}');
-          print('Response body: ${saveResponse?.body}');
+          // print('API Response: ${saveResponse?.statusCode}');
+          // print('Response body: ${saveResponse?.body}');
 
           if (saveResponse?.statusCode != 200) {
             processingErrors.add('Failed to save opportunity: ${saveResponse?.body}');
@@ -850,8 +846,22 @@ class _ReviewPageState extends State<ReviewPage> {
     String contractTag,
     String typeTag,
   ) {
-    final email = _generateEmail(firstName, lastName);
 
+    final cleanFirst = firstName.toLowerCase()
+        .replaceAll(' ', '.')
+        .replaceAll(RegExp(r'[^a-z.]'), '');
+
+    final cleanLast = lastName.toLowerCase()
+        .replaceAll(' ', '.')
+        .replaceAll(RegExp(r'[^a-z.]'), '');
+
+    // Generate random 3-digit number (100-999)
+    final random = Random();
+    final uniqueSuffix = (random.nextInt(900) + 100).toString();
+
+    // Create valid email
+    final email = '$cleanFirst.$cleanLast$uniqueSuffix@no-email.net';
+    print('Generated email:$email');
     return {
       'firstName': firstName,
       'lastName': lastName,
@@ -887,6 +897,7 @@ class _ReviewPageState extends State<ReviewPage> {
     opportunityCustomFields = _prepareOpportunityFields(newContractNumber);
     final random=Random();
     final randomNumber = random.nextInt(9000)+1000;
+
 
     final opportunityNewName =
         'Contract #$newContractNumber - ${propertyAddressController.text.isNotEmpty ? propertyAddressController.text : "Default Name"} rekloze$randomNumber';

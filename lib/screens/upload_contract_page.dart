@@ -362,10 +362,10 @@ class _UploadContractPageState extends State<UploadContractPage> {
         data[key] = value;
       }
     }
-
-    debugPrint(
-      "=======================Parsed final key-value data=========================: $data",
-    );
+    //
+    // debugPrint(
+    //   "=======================Parsed final key-value data=========================: $data",
+    // );
     return data;
   }
 

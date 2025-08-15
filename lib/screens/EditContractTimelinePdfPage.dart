@@ -199,47 +199,106 @@ class _EditContractTimelinePdfPageState
   }
 
   Future<void> fetchOpportunityValue() async {
-    const apiUrl =
-        'https://services.leadconnectorhq.com/contacts/?locationId=cyI1tRyaF0oYq5jaPVOP';
-    final headers = {
-      'Accept': 'application/json',
-      'Authorization': 'Bearer $apiToken',
-      'Version': '2021-07-28',
-    };
+    final userId = UserSessionService().userId;
+    if (userId == null) return;
+    final userIdStr = userId.toString();
 
     try {
-      final response = await http.get(Uri.parse(apiUrl), headers: headers);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final contacts = data['contacts'] as List? ?? [];
-
-        setState(() {
-          dropdownOptions =
-              contacts
-                  .map((contact) {
-                    try {
-                      final fields =
-                          (contact['customFields'] as List? ?? [])
-                              .whereType<Map<String, dynamic>>()
-                              .toList();
-
-                      if (fields.length >= 2) {
-                        return {
-                          'value': fields[0]['value']?.toString() ?? '',
-                          'label': fields[1]['value']?.toString() ?? '',
-                        };
-                      }
-                    } catch (e) {
-                      print('Error processing contact: $e');
-                    }
-                    return {'value': '', 'label': ''};
-                  })
-                  .where((item) => item['value']?.isNotEmpty ?? false)
-                  .toList();
-        });
+      // First fetch user's saved opportunities from your API
+      final userOppsResponse = await ApiService.getOpportunitiesByUserId(userIdStr);
+      if (userOppsResponse == null || userOppsResponse.statusCode != 200) {
+        print('Failed to fetch user opportunities');
+        return;
       }
+
+      // Parse the response body
+      final responseBody = json.decode(userOppsResponse.body);
+
+      // Handle different response formats
+      List<dynamic> userOppsData;
+      if (responseBody is List) {
+        userOppsData = responseBody;
+      } else if (responseBody is Map && responseBody.containsKey('data')) {
+        userOppsData = responseBody['data'] is List ? responseBody['data'] : [];
+      } else {
+        userOppsData = [];
+      }
+
+      // Extract the opportunity IDs that belong to this user
+      final userOppIds = userOppsData
+          .where((item) => item is Map && item['oppurtunityId'] != null)
+          .map((item) => item['oppurtunityId'].toString())
+          .toSet();
+
+      // If no opportunities found for user, return early
+      if (userOppIds.isEmpty) {
+        setState(() {
+          dropdownOptions = [];
+        });
+        return;
+      }
+
+      // Now fetch all opportunities from GHL
+      const ghlApiUrl = 'https://services.leadconnectorhq.com/contacts/?locationId=cyI1tRyaF0oYq5jaPVOP';
+      final ghlHeaders = {
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $apiToken',
+        'Version': '2021-07-28',
+      };
+
+      final ghlResponse = await http.get(Uri.parse(ghlApiUrl), headers: ghlHeaders);
+      if (ghlResponse.statusCode != 200) {
+        print('Failed to fetch GHL opportunities');
+        return;
+      }
+
+      final ghlData = json.decode(ghlResponse.body);
+      final contacts = ghlData['contacts'] as List? ?? [];
+
+      setState(() {
+        // Filter GHL opportunities by user's saved opportunity IDs
+        dropdownOptions = contacts
+            .where((contact) {
+          final fields = (contact['customFields'] as List? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .toList();
+
+          if (fields.length >= 2) {
+            final oppId = fields[0]['value']?.toString() ?? '';
+            return userOppIds.contains(oppId);
+          }
+          return false;
+        })
+            .map<Map<String, String>>((contact) {
+          final fields = (contact['customFields'] as List? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .toList();
+
+          return {
+            'value': fields[0]['value']?.toString() ?? '',
+            'label': fields[1]['value']?.toString() ?? '',
+          };
+        })
+            .toList();
+
+        print('====== FILTERED OPPORTUNITIES ======');
+        for (var option in dropdownOptions) {
+          print('Value: ${option['value']} | Label: ${option['label']}');
+        }
+        print('==============================');
+
+        // Auto-select first contract if available and none is selected
+        if (dropdownOptions.isNotEmpty && selectedOptionValue.isEmpty) {
+          selectedOptionValue = dropdownOptions.first['value'] ?? '';
+          onContractSelect(); // Load the contract data
+        }
+      });
+
     } catch (error) {
-      print('Error fetching dropdown data: $error');
+      print('Error fetching opportunities: $error');
+      setState(() {
+        dropdownOptions = [];
+      });
     }
   }
 
@@ -1346,38 +1405,28 @@ class _EditContractTimelinePdfPageState
                         SizedBox(height: 4),
                         DropdownButtonFormField<String>(
                           isExpanded: true,
-                          value:
-                              selectedOptionValue.isNotEmpty
-                                  ? selectedOptionValue
-                                  : null,
+                          value: selectedOptionValue.isNotEmpty ? selectedOptionValue : null,
                           decoration: InputDecoration(
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             enabledBorder: OutlineInputBorder(
-                              borderSide: BorderSide(
-                                color: Colors.grey.withOpacity(0.3),
-                              ),
+                              borderSide: BorderSide(color: Colors.grey.withOpacity(0.3)),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             filled: true,
                             fillColor: Colors.grey.withOpacity(0.1),
-                            hintText:
-                                dropdownOptions.isEmpty
-                                    ? 'Loading contracts...'
-                                    : 'Select Contract',
+                            hintText: dropdownOptions.isEmpty ? 'Loading contracts...' : 'Select Contract',
                           ),
-                          items:
-                              dropdownOptions.map((option) {
-                                return DropdownMenuItem<String>(
-                                  value: option['value'],
-                                  child: Text(
-                                    option['label'] ?? '',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                );
-                              }).toList(),
+                          items: dropdownOptions
+                              .where((option) => option['value']?.isNotEmpty ?? false) // Filter out empty values
+                              .map<DropdownMenuItem<String>>((option) { // Explicitly specify the return type
+                            final value = option['value']!; // Non-null asserted because we filtered
+                            final label = option['label'] ?? '';
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(label, overflow: TextOverflow.ellipsis),
+                            );
+                          })
+                              .toList(),
                           onChanged: (value) {
                             if (value != null) {
                               setState(() => selectedOptionValue = value);

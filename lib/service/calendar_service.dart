@@ -1,5 +1,7 @@
 import 'package:http/http.dart' as http;
+import 'package:rekloze/service/user_session_service.dart';
 import 'dart:convert';
+import '../api/api_service.dart';
 import '../models/contract_date_note.dart';
 
 class CalendarService {
@@ -18,83 +20,114 @@ class CalendarService {
     '64mrgnBSraTKciXBaPzf': 'Closing Date',
   };
 
+
   Future<List<Map<String, String>>> fetchOpportunityValue() async {
-    const apiUrl = 'https://services.leadconnectorhq.com/contacts/?locationId=cyI1tRyaF0oYq5jaPVOP';
-    final headers = {
-      'Accept': 'application/json',
-      'Authorization': 'Bearer $apiToken',
-      'Version': '2021-07-28',
-    };
+    final userId = UserSessionService().userId;
+    if (userId == null) return [];
 
     try {
-      final response = await http.get(Uri.parse(apiUrl), headers: headers);
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final contacts = data['contacts'] as List? ?? [];
-
-        return contacts.map((contact) {
-          try {
-            final fields = (contact['customFields'] as List? ?? [])
-                .whereType<Map<String, dynamic>>()
-                .toList();
-
-            if (fields.length >= 2) {
-              return {
-                'value': fields[0]['value']?.toString() ?? '',
-                'label': fields[1]['value']?.toString() ?? '',
-              };
-            }
-          } catch (e) {
-            print('Error processing contact: $e');
-          }
-          return {'value': '', 'label': ''};
-        }).where((item) => item['value']?.isNotEmpty ?? false).toList();
+      // 1. Get user's saved opportunities from your API
+      final userOppsResponse = await ApiService.getOpportunitiesByUserId(userId.toString());
+      if (userOppsResponse == null || userOppsResponse.statusCode != 200) {
+        return [];
       }
-      return [];
+
+      // 2. Parse response
+      final responseBody = json.decode(userOppsResponse.body);
+      List<dynamic> userOppsData = [];
+
+      if (responseBody is List) {
+        userOppsData = responseBody;
+      } else if (responseBody is Map && responseBody.containsKey('data')) {
+        userOppsData = responseBody['data'] is List ? responseBody['data'] : [];
+      }
+
+      // 3. Extract user's opportunity IDs
+      final userOppIds = userOppsData
+          .where((item) => item is Map && item['oppurtunityId'] != null)
+          .map((item) => item['oppurtunityId'].toString())
+          .toSet();
+
+      if (userOppIds.isEmpty) return [];
+
+      // 4. Fetch all contacts from GHL
+      final ghlResponse = await http.get(
+        Uri.parse('https://services.leadconnectorhq.com/contacts/?locationId=$locationID'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $apiToken',
+          'Version': '2021-07-28',
+        },
+      );
+
+      if (ghlResponse.statusCode != 200) return [];
+
+      final ghlData = json.decode(ghlResponse.body);
+      final contacts = ghlData['contacts'] as List? ?? [];
+
+      // 5. Filter and map to dropdown options
+      return contacts
+          .where((contact) {
+        final fields = (contact['customFields'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+
+        if (fields.length >= 2) {
+          final oppId = fields[0]['value']?.toString() ?? '';
+          return userOppIds.contains(oppId);
+        }
+        return false;
+      })
+          .map<Map<String, String>>((contact) {
+        final fields = (contact['customFields'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+
+        return {
+          'value': fields[0]['value']?.toString() ?? '',
+          'label': fields[1]['value']?.toString() ?? 'Unnamed Contract',
+        };
+      })
+          .toList();
     } catch (error) {
-      print('Error fetching dropdown data: $error');
+      print('Error fetching opportunities: $error');
       return [];
     }
   }
 
   Future<List<ContractDateNote>> fetchOpportunityDates(String opportunityId) async {
-    if (opportunityId.isEmpty) return [];
-
-    final apiUrl = 'https://services.leadconnectorhq.com/opportunities/$opportunityId';
-    final headers = {
-      'Accept': 'application/json',
-      'Authorization': 'Bearer $apiToken',
-      'Version': '2021-07-28',
-    };
-
     try {
-      final response = await http.get(Uri.parse(apiUrl), headers: headers);
+      final response = await http.get(
+        Uri.parse('https://services.leadconnectorhq.com/opportunities/$opportunityId'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $apiToken',
+          'Version': '2021-07-28',
+        },
+      );
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final fields = data['opportunity']['customFields'] as List? ?? [];
 
-        final List<ContractDateNote> dates = [];
-
-        for (final field in fields) {
+        return fields
+            .where((field) {
           final fieldId = field['id']?.toString() ?? '';
           final fieldValue = field['fieldValue']?.toString() ?? '';
-
-          final milestoneLabel = dateMapping[fieldId];
-          if (milestoneLabel != null && fieldValue.isNotEmpty) {
-            try {
-              final date = DateTime.parse(fieldValue);
-              dates.add(ContractDateNote(date: date, note: milestoneLabel));
-            } catch (e) {
-              print('Error parsing date $fieldValue: $e');
-            }
-          }
-        }
-
-        return dates;
+          return dateMapping.containsKey(fieldId) && fieldValue.isNotEmpty;
+        })
+            .map((field) {
+          final fieldId = field['id']?.toString() ?? '';
+          return ContractDateNote(
+            date: DateTime.parse(field['fieldValue']),
+            note: dateMapping[fieldId]!,
+          );
+        })
+            .toList();
       }
       return [];
     } catch (error) {
-      print('Error fetching opportunity details: $error');
+      print('Error fetching opportunity dates: $error');
       return [];
     }
   }

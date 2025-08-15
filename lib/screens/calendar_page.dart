@@ -59,18 +59,22 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     }
   }
 
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final notifier = ref.read(calendarProvider.notifier);
-      if (notifier.dropdownOptions.isNotEmpty) {
-        ref.read(selectedContractProvider.notifier).state =
-        notifier.dropdownOptions.first['value'];
-        notifier.fetchOpportunityDates(
-          notifier.dropdownOptions.first['value'] ?? '',
-        );
-      }
+      // Refresh contracts when page loads
+      ref.read(calendarProvider.notifier).fetchOpportunityValue().then((_) {
+        // Auto-select first contract if available
+        final notifier = ref.read(calendarProvider.notifier);
+        if (notifier.dropdownOptions.isNotEmpty) {
+          ref.read(selectedContractProvider.notifier).state =
+          notifier.dropdownOptions.first['value'];
+          notifier.fetchOpportunityDates(
+              notifier.dropdownOptions.first['value'] ?? '');
+        }
+      });
     });
   }
 
@@ -81,6 +85,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     final notifier = ref.read(calendarProvider.notifier);
     final contractList = notifier.contractNames;
     final isMobile = MediaQuery.of(context).size.width < 768;
+    final isLoading = ref.watch(calendarProvider.notifier).isLoading;
+    final error = ref.watch(calendarProvider.notifier).error;
 
     if (appointments.isNotEmpty && _selectedDay == null) {
       _focusedDay = appointments
@@ -103,6 +109,25 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           padding: EdgeInsets.all(isMobile ? 8 : 16),
           child: Column(
             children: [
+              // Error message display
+              if (error != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error, color: Colors.red),
+                      const SizedBox(width: 8),
+                      if (error != null) Expanded(child: Text(error)),
+                    ],
+                  ),
+                ),
+
               // Contract Dropdown
               Container(
                 decoration: BoxDecoration(
@@ -119,40 +144,148 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                   ],
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: DropdownButtonFormField<String>(
-                  value: selectedContract,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    border: InputBorder.none,
-                  ),
-                  hint: const Text('🔍 Select Contract'),
-                  items: contractList.map((name) {
-                    return DropdownMenuItem(
-                      value: notifier.dropdownOptions.firstWhere(
-                            (e) => e['label'] == name,
-                      )['value'],
-                      child: Text(
-                        name,
-                        style: TextStyle(fontSize: isMobile ? 14 : 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (error != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Text(
+                          error!,
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: isMobile ? 12 : 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
-                    );
-                  }).toList(),
-                  onChanged: (val) {
-                    ref.read(selectedContractProvider.notifier).state = val;
-                    if (val != null) {
-                      notifier.fetchOpportunityDates(val);
-                    }
-                  },
+
+                    if (isLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (notifier.dropdownOptions.isEmpty)
+                    // Disabled dropdown when no contracts available
+                      AbsorbPointer(
+                        child: Opacity(
+                          opacity: 0.5,
+                          child: DropdownButtonFormField<String>(
+                            value: null,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                                horizontal: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide: BorderSide(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey.shade50,
+                              // hint: const Text('No contracts available'),
+                            ),
+                            items: const [],
+                            onChanged: null,
+                            style: TextStyle(
+                              color: Colors.grey.shade800,
+                              fontSize: isMobile ? 14 : 16,
+                            ),
+                            dropdownColor: Colors.white,
+                            icon: Icon(
+                              Icons.arrow_drop_down,
+                              color: Colors.grey.shade600,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      )
+                    else
+                    // Normal dropdown when contracts are available
+                      DropdownButtonFormField<String>(
+                        value: selectedContract,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 12,
+                            horizontal: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade300,
+                              width: 1,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade300,
+                              width: 1,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                              color: Colors.blue.shade400,
+                              width: 1.5,
+                            ),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                          // hint: const Text('Select Contract'),
+                        ),
+                        items: notifier.dropdownOptions.map((option) {
+                          return DropdownMenuItem<String>(
+                            value: option['value'],
+                            child: Text(
+                              option['label'] ?? 'Unnamed Contract',
+                              style: TextStyle(
+                                fontSize: isMobile ? 14 : 16,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            ref.read(selectedContractProvider.notifier).state = val;
+                            notifier.fetchOpportunityDates(val);
+                          }
+                        },
+                        style: TextStyle(
+                          color: Colors.grey.shade800,
+                          fontSize: isMobile ? 14 : 16,
+                        ),
+                        dropdownColor: Colors.white,
+                        icon: Icon(
+                          Icons.arrow_drop_down,
+                          color: Colors.grey.shade600,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
 
               // Main Layout
               Expanded(
-                child: isMobile
-                    ? _buildMobileLayout(groupedDates)
-                    : _buildDesktopLayout(groupedDates),
+                child:
+                    isMobile
+                        ? _buildMobileLayout(groupedDates)
+                        : _buildDesktopLayout(groupedDates),
               ),
             ],
           ),
@@ -161,7 +294,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  Widget _buildDesktopLayout(Map<DateTime, List<ContractDateNote>> groupedDates) {
+  Widget _buildDesktopLayout(
+    Map<DateTime, List<ContractDateNote>> groupedDates,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -266,7 +401,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
     );
   }
 
-  Widget _buildMobileLayout(Map<DateTime, List<ContractDateNote>> groupedDates) {
+  Widget _buildMobileLayout(
+    Map<DateTime, List<ContractDateNote>> groupedDates,
+  ) {
     return Column(
       children: [
         Container(
@@ -384,11 +521,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 
   Widget _buildCalendarDayCell(
-      DateTime day,
-      DateTime focusedDay,
-      bool isToday, [
-        bool isSelected = false,
-      ]) {
+    DateTime day,
+    DateTime focusedDay,
+    bool isToday, [
+    bool isSelected = false,
+  ]) {
     // Get appointments from the provider
     final appointments = ref.watch(calendarProvider);
     final matches = appointments.where((e) => isSameDay(e.date, day)).toList();
@@ -410,18 +547,20 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       child: Container(
         margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.blue.shade400
-              : isToday
-              ? Colors.blue.shade100
-              : Colors.white,
+          color:
+              isSelected
+                  ? Colors.blue.shade400
+                  : isToday
+                  ? Colors.blue.shade100
+                  : Colors.white,
           borderRadius: BorderRadius.circular(8),
         ),
-        child: ClipRRect(  // Added to prevent overflow visuals
+        child: ClipRRect(
+          // Added to prevent overflow visuals
           borderRadius: BorderRadius.circular(8),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,  // Constrains column size
+            mainAxisSize: MainAxisSize.min, // Constrains column size
             children: [
               Text(
                 '${day.day}',
@@ -432,40 +571,43 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 ),
               ),
               if (matches.isNotEmpty)
-                SizedBox(  // Constrained container for events
-                  height: 24,  // Fixed height
+                SizedBox(
+                  // Constrained container for events
+                  height: 24, // Fixed height
                   child: ListView(
                     physics: const NeverScrollableScrollPhysics(),
                     shrinkWrap: true,
                     padding: EdgeInsets.zero,
-                    children: matches.take(2).map((e) {
-                      final color = _getNoteColor(e.note);
-                      return Tooltip(
-                        message: e.note,
-                        child: Container(
-                          margin: const EdgeInsets.only(top: 2),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 2,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? color.withOpacity(0.8)
-                                : color.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            e.note.split(' ').first,
-                            style: TextStyle(
-                              fontSize: isMobile ? 10 : 8,
-                              color: isSelected ? Colors.white : color,
+                    children:
+                        matches.take(2).map((e) {
+                          final color = _getNoteColor(e.note);
+                          return Tooltip(
+                            message: e.note,
+                            child: Container(
+                              margin: const EdgeInsets.only(top: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 2,
+                                vertical: 1,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    isSelected
+                                        ? color.withOpacity(0.8)
+                                        : color.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                e.note.split(' ').first,
+                                style: TextStyle(
+                                  fontSize: isMobile ? 10 : 8,
+                                  color: isSelected ? Colors.white : color,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                          );
+                        }).toList(),
                   ),
                 ),
             ],
@@ -474,6 +616,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       ),
     );
   }
+
   Widget _buildEventList(Map<DateTime, List<ContractDateNote>> groupedDates) {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
@@ -492,123 +635,124 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         ],
       ),
       padding: EdgeInsets.all(isMobile ? 8 : 16),
-      child: groupedDates.isEmpty
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.calendar_today,
-              size: 48,
-              color: Colors.grey.shade400,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              "No events found for this contract",
-              style: TextStyle(
-                fontSize: isMobile ? 14 : 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      )
-          : ListView.builder(
-        padding: EdgeInsets.zero,
-        itemCount: groupedDates.length,
-        itemBuilder: (context, index) {
-          final date = groupedDates.keys.elementAt(index);
-          final notes = groupedDates[date]!;
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 8,
-                  horizontal: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
+      child:
+          groupedDates.isEmpty
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       Icons.calendar_today,
-                      size: 16,
-                      color: Colors.blue.shade700,
+                      size: 48,
+                      color: Colors.grey.shade400,
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(height: 16),
                     Text(
-                      DateFormat('EEE, MMM d, yyyy').format(date),
+                      "No events found for this contract",
                       style: TextStyle(
                         fontSize: isMobile ? 14 : 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade800,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey,
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 8),
-              ...notes.map(
-                    (e) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
+              )
+              : ListView.builder(
+                padding: EdgeInsets.zero,
+                itemCount: groupedDates.length,
+                itemBuilder: (context, index) {
+                  final date = groupedDates.keys.elementAt(index);
+                  final notes = groupedDates[date]!;
+
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 12,
+                        ),
                         decoration: BoxDecoration(
-                          color: _getNoteColor(e.note).withOpacity(0.1),
-                          shape: BoxShape.circle,
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(
-                          _getNoteIcon(e.note),
-                          size: 18,
-                          color: _getNoteColor(e.note),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
+                            Icon(
+                              Icons.calendar_today,
+                              size: 16,
+                              color: Colors.blue.shade700,
+                            ),
+                            const SizedBox(width: 8),
                             Text(
-                              e.note,
+                              DateFormat('EEE, MMM d, yyyy').format(date),
                               style: TextStyle(
                                 fontSize: isMobile ? 14 : 16,
-                                fontWeight: FontWeight.w600,
-                                color: const Color(0xFF212121),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat('h:mm a').format(e.date),
-                              style: TextStyle(
-                                fontSize: isMobile ? 12 : 13,
-                                color: Colors.grey.shade600,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue.shade800,
                               ),
                             ),
                           ],
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      ...notes.map(
+                        (e) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: _getNoteColor(e.note).withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  _getNoteIcon(e.note),
+                                  size: 18,
+                                  color: _getNoteColor(e.note),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      e.note,
+                                      style: TextStyle(
+                                        fontSize: isMobile ? 14 : 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF212121),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      DateFormat('h:mm a').format(e.date),
+                                      style: TextStyle(
+                                        fontSize: isMobile ? 12 : 13,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (index != groupedDates.length - 1)
+                        const Divider(
+                          height: 16,
+                          thickness: 0.5,
+                          color: Colors.grey,
+                        ),
                     ],
-                  ),
-                ),
+                  );
+                },
               ),
-              if (index != groupedDates.length - 1)
-                const Divider(
-                  height: 16,
-                  thickness: 0.5,
-                  color: Colors.grey,
-                ),
-            ],
-          );
-        },
-      ),
     );
   }
 }
