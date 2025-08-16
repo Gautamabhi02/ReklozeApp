@@ -6,6 +6,7 @@ class CalendarNotifier extends StateNotifier<List<ContractDateNote>> {
   final CalendarService _service;
   List<Map<String, String>> dropdownOptions = [];
   bool isLoading = true;
+  bool _contractsLoaded = false;
   String? error;
 
   CalendarNotifier(this._service) : super([]) {
@@ -19,6 +20,9 @@ class CalendarNotifier extends StateNotifier<List<ContractDateNote>> {
   Future<void> fetchOpportunityValue() async {
     try {
       isLoading = true;
+      if (!_contractsLoaded) {
+        isLoading = true;
+      }
       error = null;
       state = []; // Clear existing events
 
@@ -29,6 +33,7 @@ class CalendarNotifier extends StateNotifier<List<ContractDateNote>> {
       if (dropdownOptions.isEmpty) {
         error = 'No contracts found for this user';
       }
+      _contractsLoaded = true;
     } catch (e) {
       error = 'Failed to load contracts';
       dropdownOptions = [];

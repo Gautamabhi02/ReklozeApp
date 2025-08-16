@@ -34,6 +34,14 @@ class CalendarService {
 
       // 2. Parse response
       final responseBody = json.decode(userOppsResponse.body);
+      if (responseBody is List && responseBody.isEmpty) {
+        return [];
+      }
+      if (responseBody is Map &&
+          (responseBody['data'] == null ||
+              (responseBody['data'] is List && responseBody['data'].isEmpty))) {
+        return [];
+      }
       List<dynamic> userOppsData = [];
 
       if (responseBody is List) {
