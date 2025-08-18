@@ -32,6 +32,7 @@ class CalendarNotifier extends StateNotifier<List<ContractDateNote>> {
 
       if (dropdownOptions.isEmpty) {
         error = 'No contracts found for this user';
+        isLoading = false;
       }
       _contractsLoaded = true;
     } catch (e) {
@@ -45,6 +46,12 @@ class CalendarNotifier extends StateNotifier<List<ContractDateNote>> {
   Future<void> fetchOpportunityDates(String opportunityId) async {
     try {
       isLoading = true;
+      if (opportunityId.isEmpty) {
+        state = [];
+        isLoading = false;
+        return;
+      }
+
       final dates = await _service.fetchOpportunityDates(opportunityId);
       state = dates;
       error = null;

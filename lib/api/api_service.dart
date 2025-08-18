@@ -12,7 +12,7 @@ import 'dart:typed_data';
 
 
 class ApiService {
-  Future<bool> signup(SignupModel model) async {
+  Future<String?> signup(SignupModel model) async {
     final url = Uri.parse('${Env.baseUrl}/Login/signup');
 
     try {
@@ -23,17 +23,23 @@ class ApiService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
+        return null; // Success - no error message
       } else {
-        print('Signup failed: ${response.body}');
-        return false;
+        // Try to parse the error message from response body
+        try {
+          final errorMessage = jsonDecode(response.body) as String;
+          return errorMessage;
+        } catch (e) {
+          // If parsing fails, return the raw response body
+          return response.body.isNotEmpty
+              ? response.body
+              : 'Signup failed (${response.statusCode})';
+        }
       }
     } catch (e) {
-      print('Error: $e');
-      return false;
+      return 'Network error: $e';
     }
   }
-
   Future<Map<String, dynamic>?> login(String username, String password) async {
     final url = Uri.parse('${Env.baseUrl}/Login/login');
     try {

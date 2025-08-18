@@ -74,6 +74,9 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
           notifier.fetchOpportunityDates(
               notifier.dropdownOptions.first['value'] ?? '');
         }
+        else{
+          notifier.isLoading = false;
+        }
       });
     });
   }
@@ -528,7 +531,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   ]) {
     // Get appointments from the provider
     final appointments = ref.watch(calendarProvider);
-    final matches = appointments.where((e) => isSameDay(e.date, day)).toList();
+    final matches = appointments.where((e) => isSameDay(e.date, day)).toList()..sort((a, b) => b.date.compareTo(a.date));
     final isMobile = MediaQuery.of(context).size.width < 768;
 
     return MouseRegion(
@@ -620,6 +623,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   Widget _buildEventList(Map<DateTime, List<ContractDateNote>> groupedDates) {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
+    final sortedDates = groupedDates.keys.toList()..sort((a, b) => a.compareTo(b));
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -635,124 +640,124 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         ],
       ),
       padding: EdgeInsets.all(isMobile ? 8 : 16),
-      child:
-          groupedDates.isEmpty
-              ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+      child: groupedDates.isEmpty
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.calendar_today,
+              size: 48,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              "No events found for this contract",
+              style: TextStyle(
+                fontSize: isMobile ? 14 : 16,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      )
+          : ListView.builder(
+        padding: EdgeInsets.zero,
+        itemCount: sortedDates.length, // Use sorted dates
+        itemBuilder: (context, index) {
+          final date = sortedDates[index]; // Get date from sorted list
+          final notes = groupedDates[date]!
+            ..sort((a, b) => b.date.compareTo(a.date)); // Sort notes within date
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
                   children: [
                     Icon(
                       Icons.calendar_today,
-                      size: 48,
-                      color: Colors.grey.shade400,
+                      size: 16,
+                      color: Colors.blue.shade700,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(width: 8),
                     Text(
-                      "No events found for this contract",
+                      DateFormat('EEE, MMM d, yyyy').format(date),
                       style: TextStyle(
                         fontSize: isMobile ? 14 : 16,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade800,
                       ),
                     ),
                   ],
                 ),
-              )
-              : ListView.builder(
-                padding: EdgeInsets.zero,
-                itemCount: groupedDates.length,
-                itemBuilder: (context, index) {
-                  final date = groupedDates.keys.elementAt(index);
-                  final notes = groupedDates[date]!;
-
-                  return Column(
+              ),
+              const SizedBox(height: 8),
+              ...notes.map(
+                    (e) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 8,
-                          horizontal: 12,
-                        ),
+                        padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(8),
+                          color: _getNoteColor(e.note).withOpacity(0.1),
+                          shape: BoxShape.circle,
                         ),
-                        child: Row(
+                        child: Icon(
+                          _getNoteIcon(e.note),
+                          size: 18,
+                          color: _getNoteColor(e.note),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.calendar_today,
-                              size: 16,
-                              color: Colors.blue.shade700,
-                            ),
-                            const SizedBox(width: 8),
                             Text(
-                              DateFormat('EEE, MMM d, yyyy').format(date),
+                              e.note,
                               style: TextStyle(
                                 fontSize: isMobile ? 14 : 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade800,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF212121),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('h:mm a').format(e.date),
+                              style: TextStyle(
+                                fontSize: isMobile ? 12 : 13,
+                                color: Colors.grey.shade600,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      ...notes.map(
-                        (e) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: _getNoteColor(e.note).withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  _getNoteIcon(e.note),
-                                  size: 18,
-                                  color: _getNoteColor(e.note),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      e.note,
-                                      style: TextStyle(
-                                        fontSize: isMobile ? 14 : 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF212121),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      DateFormat('h:mm a').format(e.date),
-                                      style: TextStyle(
-                                        fontSize: isMobile ? 12 : 13,
-                                        color: Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (index != groupedDates.length - 1)
-                        const Divider(
-                          height: 16,
-                          thickness: 0.5,
-                          color: Colors.grey,
-                        ),
                     ],
-                  );
-                },
+                  ),
+                ),
               ),
+              if (index != sortedDates.length - 1)
+                const Divider(
+                  height: 16,
+                  thickness: 0.5,
+                  color: Colors.grey,
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

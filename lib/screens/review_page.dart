@@ -339,20 +339,29 @@ class _ReviewPageState extends State<ReviewPage> {
   }
 
   void _extractAdditionalInfo() {
-    sellerAgentName =
-        widget.contractData['Seller Agent Name']?.toString() ??
-        widget.contractData['Listing Agent Name']?.toString() ??
-        '';
+    sellerAgentName = _isValidField(widget.contractData['Seller Agent Name']?.toString()) ?
+    widget.contractData['Seller Agent Name']?.toString() ?? '' : '';
 
-    buyerAgentController.text =
-        widget.contractData['Buyer Agent Name']?.toString() ?? '';
-    escrowAgentController.text =
-        widget.contractData['Escrow Agent Name']?.toString() ?? '';
-    escrowAgentEmail = widget.contractData['Escrow Agent Email']?.toString();
-    escrowAgentPhone = widget.contractData['Escrow Agent Phone']?.toString();
-    propertyAddressController.text =
-        widget.contractData['Property Address']?.toString() ?? '';
-    propertyTaxId = widget.contractData['Property Tax ID']?.toString();
+    sellerAgentName = _isValidField(widget.contractData['Listing Agent Name']?.toString()) ?
+    widget.contractData['Listing Agent Name']?.toString() ?? '' : sellerAgentName;
+
+    buyerAgentController.text = _isValidField(widget.contractData['Buyer Agent Name']?.toString()) ?
+    widget.contractData['Buyer Agent Name']?.toString() ?? '' : '';
+
+    escrowAgentController.text = _isValidField(widget.contractData['Escrow Agent Name']?.toString()) ?
+    widget.contractData['Escrow Agent Name']?.toString() ?? '' : '';
+
+    escrowAgentEmail = _isValidField(widget.contractData['Escrow Agent Email']?.toString()) ?
+    widget.contractData['Escrow Agent Email']?.toString() : null;
+
+    escrowAgentPhone = _isValidField(widget.contractData['Escrow Agent Phone']?.toString()) ?
+    widget.contractData['Escrow Agent Phone']?.toString() : null;
+
+    propertyAddressController.text = _isValidField(widget.contractData['Property Address']?.toString()) ?
+    widget.contractData['Property Address']?.toString() ?? '' : '';
+
+    propertyTaxId = _isValidField(widget.contractData['Property Tax ID']?.toString()) ?
+    widget.contractData['Property Tax ID']?.toString() : null;
   }
 
   void _parseDatesFromContract() {
@@ -443,11 +452,15 @@ class _ReviewPageState extends State<ReviewPage> {
   // Add this to your state class
   Map<String, bool> manuallySetDates = {};
 
-  bool _isValidName(String? name) {
-    if (name == null || name.trim().isEmpty) return false;
-    final lowerCaseName = name.trim().toLowerCase();
-    return !(lowerCaseName.contains('not specified') ||
-        lowerCaseName.contains('not provided'));
+  bool _isValidField(String? value) {
+    if (value == null || value.trim().isEmpty) return false;
+    final lowerCaseValue = value.trim().toLowerCase();
+    return !(lowerCaseValue.contains('not specified') ||
+        lowerCaseValue.contains('not provided') ||
+        lowerCaseValue.contains('n/a') ||
+        lowerCaseValue.contains('na') ||
+        lowerCaseValue.contains('not explicitly listed') ||
+        lowerCaseValue.contains('not explicitly mentioned'));
   }
 
   String _formatLabel(String key) {
@@ -900,7 +913,7 @@ class _ReviewPageState extends State<ReviewPage> {
 
 
     final opportunityNewName =
-        'Contract #$newContractNumber - ${propertyAddressController.text.isNotEmpty ? propertyAddressController.text : "Default Name"} rekloze$randomNumber';
+        'Contract #$newContractNumber - ${propertyAddressController.text.isNotEmpty ? propertyAddressController.text : ""} ';
 
 
     final opportunityData = {

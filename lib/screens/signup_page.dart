@@ -47,25 +47,24 @@ class _SignupPageState extends State<SignupPage> {
           password: _passwordController.text.trim(),
         );
 
-        final result = await ApiService().signup(model);
+        final errorMessage = await ApiService().signup(model);
 
         if (!mounted) return;
 
         // Remove any old banners first
         ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
 
-        if (result == null) {
-          _showTopError('Server unreachable or slow network. Please try again.');
-          return;
-        }
-
-        if (result) {
+        if (errorMessage == null) {
+          // Success case
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const LoginPage()),
           );
         } else {
-          _showTopError('Signup failed. Please try again.');
+          // Error case
+          _showTopError(errorMessage.contains('already exists')
+              ? 'Username or Email already exists'
+              : 'Signup failed. Please try again.');
         }
       } finally {
         if (mounted) {
@@ -74,7 +73,6 @@ class _SignupPageState extends State<SignupPage> {
       }
     }
   }
-
 // Helper to show a red banner at top
   void _showTopError(String message) {
     ScaffoldMessenger.of(context).showMaterialBanner(
