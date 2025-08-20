@@ -467,20 +467,23 @@ class _UploadContractPageState extends State<UploadContractPage> {
   }
 
   Widget _buildProgressBar() {
-    return Column(
-      children: [
-        LinearProgressIndicator(
-          value: _uploadProgress / 100,
-          backgroundColor: Colors.grey.shade300,
-          valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
-          minHeight: 8,
-        ),
-        const SizedBox(height: 12),
-        Text(
-          _uploadStatusText,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-      ],
+    return Container(
+      height: 50,
+      child: Column(
+        children: [
+          LinearProgressIndicator(
+            value: _uploadProgress / 100,
+            backgroundColor: Colors.grey.shade300,
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+            minHeight: 8,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _uploadStatusText,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 
@@ -558,9 +561,9 @@ class _UploadContractPageState extends State<UploadContractPage> {
       drawer: const CustomNavbar(),
       body: SafeArea(
         bottom: true,
-        minimum: const EdgeInsets.only(bottom: 24),
+        minimum: const EdgeInsets.only(bottom: 16),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
@@ -573,15 +576,18 @@ class _UploadContractPageState extends State<UploadContractPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const SizedBox(height: 10),
+                        // const SizedBox(height: 10),
                         ContractProgressBar(currentStep: 1),
                         const SizedBox(height: 14),
                         _buildFileCard(),
                         const SizedBox(height: 14),
                         _buildDateSelector(),
                         const SizedBox(height: 18),
-                        _isUploading ? _buildProgressBar() : _buildUploadButton(),
-                        const SizedBox(height: 20),
+                        Container(
+                          height: 50,
+                          child: _isUploading ? _buildProgressBar() : _buildUploadButton(),
+                        ),
+                        // const SizedBox(height: 20),
                       ],
                     ),
                   ),
