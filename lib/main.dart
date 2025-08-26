@@ -5,11 +5,14 @@ import 'package:rekloze/screens/EditContractTimelinePdfPage.dart';
 import 'package:rekloze/screens/calendar_page.dart';
 import 'package:rekloze/screens/home_page.dart';
 import 'package:rekloze/screens/upload_contract_page.dart';
+import 'package:rekloze/service/notification_service.dart';
 import 'package:rekloze/service/user_session_service.dart';
+import 'package:rekloze/utils/background_processor.dart';
 import 'screens/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await BackgroundTaskManager.initialize();
 
   // Initialize Riverpod and session
   String? token;
@@ -33,9 +36,12 @@ class MyApp extends ConsumerWidget { // Changed to ConsumerWidget
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    NotificationService.navigatorKey = GlobalKey<NavigatorState>();
+
     return MaterialApp(
       title: 'Rekloze App',
       debugShowCheckedModeBanner: false,
+      navigatorKey: NotificationService.navigatorKey,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),

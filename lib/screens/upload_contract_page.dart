@@ -1,18 +1,24 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../api/ApplynxService.dart';
 import '../api/api_service.dart';
+import '../utils/background_processor.dart';
 import '../widgets/contract_progress_bar.dart';
 import '../widgets/custom_navbar.dart';
 import '../widgets/navbar_page.dart';
 import 'review_page.dart';
 import 'dart:isolate';
+import 'package:path_provider/path_provider.dart';
+// import 'package:workmanager/workmanager.dart';
+import '../utils/background_processor.dart';
 
 class UploadContractPage extends StatefulWidget {
   const UploadContractPage({super.key});
@@ -146,73 +152,6 @@ class _UploadContractPageState extends State<UploadContractPage> {
     await Future.delayed(const Duration(milliseconds: 500));
   }
 
-  // void _submitContract() async {
-  //   setState(() => _isUploading = true);
-  //   await _simulateUploadProgress();
-  //
-  //   try {
-  //
-  //     final testDataResponse = await ApiApplynxService().getTestData();
-  //     debugPrint("Raw API Response:");
-  //     debugPrint(testDataResponse.toString());
-  //     final parsedData = parseTextToJson(testDataResponse['content']);
-  //     // Print parsed data to console
-  //     debugPrint("\nParsed Contract Data:");
-  //     parsedData.forEach((key, value) {
-  //       debugPrint('$key: $value');
-  //     });
-  //
-  //     // Show verification dialog (same as before)
-  //     showDialog(
-  //       context: context,
-  //       builder: (_) => AlertDialog(
-  //         backgroundColor: Colors.white,
-  //         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-  //         title: const Row(
-  //           children: [
-  //             Icon(Icons.info, color: Colors.orange),
-  //             SizedBox(width: 10),
-  //             Text("Verify Data", style: TextStyle(color: Colors.black)),
-  //           ],
-  //         ),
-  //         content: const Text(
-  //           "The extracted data may not be 100% accurate.\n\nPlease verify all fields before saving to CRM.",
-  //           style: TextStyle(fontSize: 15),
-  //         ),
-  //         actions: [
-  //           TextButton(
-  //             style: TextButton.styleFrom(foregroundColor: Colors.indigo),
-  //             onPressed: () {
-  //               Navigator.pop(context);
-  //               Navigator.push(
-  //                 context,
-  //                 MaterialPageRoute(
-  //                   builder: (_) => ReviewPage(
-  //                     pdfFile: _selectedFile?.bytes ?? Uint8List(0),
-  //                     contractData: parsedData,
-  //                     onProceed: () => print("Proceed clicked"),
-  //                     onGoBack: () => Navigator.pop(context),
-  //                   ),
-  //                 ),
-  //               );
-  //             },
-  //             child: const Text("Review"),
-  //           ),
-  //         ],
-  //       ),
-  //     );
-  //   } catch (e) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text("Error: $e")),
-  //     );
-  //   } finally {
-  //     setState(() {
-  //       _isUploading = false;
-  //       _uploadProgress = 0;
-  //     });
-  //   }
-  // }
-
   void _submitContract() async {
     if (_selectedFile == null || !_isValidPdf(_selectedFile!.bytes!)) {
       ScaffoldMessenger.of(
@@ -228,32 +167,60 @@ class _UploadContractPageState extends State<UploadContractPage> {
 
     final progressFuture = _simulateUploadProgress();
 
-    // Launch API call in compute
-    final apiResponseBody = await compute(
-      computeUpload,
-      ComputeRequest(
-        fileBytes: _selectedFile!.bytes!,
-        fileName: _selectedFile!.name,
-        prompt: promptText,
-      ),
-    );
-    // Wait for progress to complete
-    await progressFuture;
 
-    setState(() {
-      _isUploading = false;
-      _uploadProgress = 0;
-    });
+    try {
+      String apiResponseBody;
 
-    // Parse response and show modal
-    if (apiResponseBody.isNotEmpty) {
-      final parsedData = parseTextToJson(apiResponseBody);
-      _showReviewDialog(parsedData);
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Upload failed")));
+      if (kIsWeb) {
+        // For web, process directly without background task
+        final response = await ApiService.uploadContractWithPrompt(
+          selectedFile: _selectedFile!,
+          promptText: promptText,
+        );
+        apiResponseBody = response?.body ?? '';
+      } else {
+        // For mobile, use background processing
+        final filePath = await _saveFileForBackgroundProcessing(
+            _selectedFile!.bytes!,
+            _selectedFile!.name
+        );
+
+        final backgroundArgs = BackgroundArgs(
+          filePath,
+          _selectedFile!.name,
+          promptText,
+          fileBytes: _selectedFile!.bytes, // Pass bytes for mobile too
+        );
+
+        apiResponseBody = await BackgroundTaskManager.processInBackground(backgroundArgs);
+      }
+
+      // Wait for progress to complete
+      await progressFuture;
+
+      if (apiResponseBody.isNotEmpty) {
+        final parsedData = parseTextToJson(apiResponseBody);
+        _showReviewDialog(parsedData);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Upload failed")));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Upload error: $e")));
+    } finally {
+      setState(() {
+        _isUploading = false;
+        _uploadProgress = 0;
+      });
     }
+  }
+
+  Future<String> _saveFileForBackgroundProcessing(Uint8List fileBytes, String fileName) async {
+    final directory = await getTemporaryDirectory();
+    final file = File('${directory.path}/$fileName');
+    await file.writeAsBytes(fileBytes);
+    return file.path;
   }
 
   void _showReviewDialog(Map<String, String> contractData) {
