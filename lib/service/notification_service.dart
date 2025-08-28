@@ -114,35 +114,7 @@ class NotificationService {
       payload: payload,
     );
   }
-  static Future<void> showUploadFailedNotification({
-    String title = 'Upload Failed',
-    String body = 'Your document upload failed',
-    String payload = 'upload_failed',
-  }) async {
-    const AndroidNotificationDetails androidNotificationDetails =
-    AndroidNotificationDetails(
-      uploadChannelId,
-      uploadChannelName,
-      channelDescription: uploadChannelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('notification_ringtone'),
-      enableVibration: true,
-      showWhen: true,
-    );
 
-    const NotificationDetails notificationDetails =
-    NotificationDetails(android: androidNotificationDetails);
-
-    await _notificationsPlugin.show(
-      Random().nextInt(1000),
-      title,
-      body,
-      notificationDetails,
-      payload: payload,
-    );
-  }
   static Future<void> showImportantNotification({
     String title = 'Important',
     String body = 'You have an important notification',

@@ -13,6 +13,7 @@ void callbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     if (taskName == 'uploadTask') {
       try {
+        // Process the upload
         final args = BackgroundArgs(
           inputData!['filePath'] ?? '',
           inputData['fileName'] ?? '',
@@ -21,29 +22,21 @@ void callbackDispatcher() {
 
         final result = await runBackgroundProcessing(args);
 
-        if (result.isNotEmpty) {
-          // Show notification only when successful
-          await NotificationService.showUploadCompleteNotification(
-            title: 'Upload Complete',
-            body: 'Your document upload is complete',
-            payload: 'review_page',
-          );
-          return Future.value(true);
-        } else {
-          // Show failure notification
-          await NotificationService.showUploadFailedNotification();
-          return Future.value(false);
-        }
+        // Show notification when complete
+        await NotificationService.showUploadCompleteNotification(
+          title: 'Upload Complete',
+          body: 'Your upload document is complete',
+          payload: 'review_page',
+        );
+
+        return Future.value(true);
       } catch (e) {
-        // Show failure notification on error
-        await NotificationService.showUploadFailedNotification();
         return Future.value(false);
       }
     }
     return Future.value(false);
   });
 }
-
 
 class BackgroundArgs {
   final String filePath;
@@ -103,6 +96,7 @@ Future<void> scheduleBackgroundUpload(BackgroundArgs args) async {
 // Background processing function
 Future<String> runBackgroundProcessing(BackgroundArgs args) async {
   try {
+    // Your existing processing logic here
     final platformFile = PlatformFile(
       name: args.fileName,
       size: args.fileBytes?.length ?? 0,
@@ -121,7 +115,6 @@ Future<String> runBackgroundProcessing(BackgroundArgs args) async {
   }
 }
 
-
 class BackgroundTaskManager {
   static Future<void> initialize() async {
     await initializeBackgroundProcessing();
@@ -129,26 +122,13 @@ class BackgroundTaskManager {
   }
 
   static Future<String> processInBackground(BackgroundArgs args) async {
-    try {
-      final result = await runBackgroundProcessing(args);
-
-      if (result.isNotEmpty) {
-        // Show notification only when successful
-        await NotificationService.showUploadCompleteNotification(
-          title: 'Upload Complete',
-          body: 'Your document upload is complete',
-          payload: 'review_page',
-        );
-        return result;
-      } else {
-        // Show failure notification
-        await NotificationService.showUploadFailedNotification();
-        return '';
-      }
-    } catch (e) {
-      // Show failure notification
-      await NotificationService.showUploadFailedNotification();
-      rethrow;
-    }
+    // For immediate processing with notification
+    final result = await runBackgroundProcessing(args);
+    await NotificationService.showUploadCompleteNotification(
+      title: 'Upload Complete',
+      body: 'Your upload document is complete',
+      payload: 'review_page',
+    );
+    return result;
   }
 }

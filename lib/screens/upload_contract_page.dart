@@ -10,7 +10,6 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../api/ApplynxService.dart';
 import '../api/api_service.dart';
-import '../service/notification_service.dart';
 import '../utils/background_processor.dart';
 import '../widgets/contract_progress_bar.dart';
 import '../widgets/custom_navbar.dart';
@@ -166,12 +165,11 @@ class _UploadContractPageState extends State<UploadContractPage> {
     final promptText =
         "Extract the following details from the contract in clean markdown format without any explanation: Seller, Buyer, Seller Agent Name, Buyer Agent Name, Listing Agent Name, Listing Agent Company Name, Listing Agent Phone, Listing Agent Email, Selling Agent Name, Selling Agent Company Name, Selling Agent Phone, Selling Agent Email, Escrow Agent Name, Escrow Agent Phone, Escrow Agent Email, Property Address, Property Tax ID, Contract Type (Cash or Finance),  Closing Date (use actual date if present in the contract, otherwise use relative format like '(35 days after Effective Date)'). For all other date fields — Initial Escrow Deposit Due Date, Loan Application Due Date, Additional Escrow Deposit Due Date, Inspection Period Deadline, Loan Approval Due Date, Title Evidence Due Date — return relative offsets like '(5 days after Effective Date)' or '(10 days before Closing Date)' only if actual dates are not present,if both are present that is good gave both of them. Do not include full calendar dates unless they are explicitly written in the contract.";
 
-     final progressFuture = _simulateUploadProgress();
+    final progressFuture = _simulateUploadProgress();
 
 
     try {
       String apiResponseBody;
-
 
       if (kIsWeb) {
         // For web, process directly without background task
@@ -203,20 +201,13 @@ class _UploadContractPageState extends State<UploadContractPage> {
       if (apiResponseBody.isNotEmpty) {
         final parsedData = parseTextToJson(apiResponseBody);
         _showReviewDialog(parsedData);
-        await NotificationService.showUploadCompleteNotification(
-          title: 'Upload Complete',
-          body: 'Your document has been processed successfully',
-          payload: 'review_page',
-        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Upload failed")));
-        await NotificationService.showUploadFailedNotification();
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text("Upload error: $e")));
-      await NotificationService.showUploadFailedNotification();
     } finally {
       setState(() {
         _isUploading = false;
