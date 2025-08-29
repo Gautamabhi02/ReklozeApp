@@ -1,16 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
-import 'dart:math';
 
 class NotificationService {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
   FlutterLocalNotificationsPlugin();
 
-  // Create a static navigator key that can be accessed from anywhere
   static GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-  // Notification channel IDs
   static const String uploadChannelId = 'upload_channel';
   static const String uploadChannelName = 'Upload Notifications';
   static const String uploadChannelDescription = 'Notifications for document upload completion';
@@ -29,10 +26,7 @@ class NotificationService {
       },
     );
 
-    // Create notification channel with sound
     await _createNotificationChannel();
-
-    // Request notification permissions (only on Android/iOS, not web)
     await _requestPermissions();
   }
 
@@ -67,19 +61,13 @@ class NotificationService {
     }
   }
 
-  /// Safe check: works on Web + Android + iOS
   static bool get _isAndroid {
-    if (kIsWeb) return false; // Web fallback
-    try {
-      return defaultTargetPlatform == TargetPlatform.android;
-    } catch (_) {
-      return false;
-    }
+    if (kIsWeb) return false;
+    return defaultTargetPlatform == TargetPlatform.android;
   }
 
   static void _onNotificationTap(NotificationResponse response) {
     if (response.payload == 'review_page') {
-
       navigatorKey.currentState?.pushNamed('/review');
     }
   }
@@ -89,7 +77,12 @@ class NotificationService {
     String body = 'Your document upload is complete',
     String payload = 'review_page',
   }) async {
-    // Android notification details with sound
+    // Only show notification if app is NOT foregrounded
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      debugPrint("App is in foreground. Skipping notification.");
+      return;
+    }
+
     const AndroidNotificationDetails androidNotificationDetails =
     AndroidNotificationDetails(
       uploadChannelId,
@@ -97,7 +90,7 @@ class NotificationService {
       channelDescription: uploadChannelDescription,
       importance: Importance.high,
       priority: Priority.high,
-      playSound: true, // Enable sound
+      playSound: true,
       sound: RawResourceAndroidNotificationSound('notification_ringtone'),
       enableVibration: true,
       showWhen: true,
@@ -107,18 +100,24 @@ class NotificationService {
     NotificationDetails(android: androidNotificationDetails);
 
     await _notificationsPlugin.show(
-      Random().nextInt(1000), // Random ID
+      UniqueKey().hashCode,
       title,
       body,
       notificationDetails,
       payload: payload,
     );
   }
+
   static Future<void> showUploadFailedNotification({
     String title = 'Upload Failed',
     String body = 'Your document upload failed',
     String payload = 'upload_failed',
   }) async {
+    if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+      debugPrint("App is in foreground. Skipping failed notification.");
+      return;
+    }
+
     const AndroidNotificationDetails androidNotificationDetails =
     AndroidNotificationDetails(
       uploadChannelId,
@@ -136,36 +135,7 @@ class NotificationService {
     NotificationDetails(android: androidNotificationDetails);
 
     await _notificationsPlugin.show(
-      Random().nextInt(1000),
-      title,
-      body,
-      notificationDetails,
-      payload: payload,
-    );
-  }
-  static Future<void> showImportantNotification({
-    String title = 'Important',
-    String body = 'You have an important notification',
-    String payload = 'important',
-  }) async {
-    const AndroidNotificationDetails androidNotificationDetails =
-    AndroidNotificationDetails(
-      'important_channel',
-      'Important Notifications',
-      channelDescription: 'Important notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      sound: RawResourceAndroidNotificationSound('notification_ringtone'),
-      enableVibration: true,
-      showWhen: true,
-    );
-
-    const NotificationDetails notificationDetails =
-    NotificationDetails(android: androidNotificationDetails);
-
-    await _notificationsPlugin.show(
-      Random().nextInt(1000),
+      UniqueKey().hashCode,
       title,
       body,
       notificationDetails,

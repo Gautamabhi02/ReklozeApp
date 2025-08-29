@@ -12,12 +12,14 @@ import 'screens/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.initialize();
   await BackgroundTaskManager.initialize();
 
   // Initialize Riverpod and session
   String? token;
   try {
     await UserSessionService().initialize();
+
     token = UserSessionService().token;
   } catch (e) {
     debugPrint('Initialization error: $e');

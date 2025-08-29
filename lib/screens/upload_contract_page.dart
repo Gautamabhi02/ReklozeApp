@@ -124,30 +124,41 @@ class _UploadContractPageState extends State<UploadContractPage> {
   }
 
   Future<void> _simulateUploadProgress() async {
+    if (!mounted) return;
+
     setState(() {
       _uploadProgress = 0;
       _uploadStatusText = "Starting Processing...";
     });
 
     // Phase 1: Initial Processing (0-30%)
-    setState(() => _uploadStatusText = "Extracting Data...");
     for (int i = 0; i <= 30; i++) {
       await Future.delayed(const Duration(milliseconds: 350));
-      setState(() => _uploadProgress = i.toDouble());
+      if (!mounted) return;
+      setState(() {
+        _uploadProgress = i.toDouble();
+        _uploadStatusText = "Extracting Data...";
+      });
     }
 
     // Phase 2: Parsing (30-70%)
-    setState(() => _uploadStatusText = "Parsing Dates...");
     for (int i = 31; i <= 70; i++) {
       await Future.delayed(const Duration(milliseconds: 500));
-      setState(() => _uploadProgress = i.toDouble());
+      if (!mounted) return;
+      setState(() {
+        _uploadProgress = i.toDouble();
+        _uploadStatusText = "Parsing Dates...";
+      });
     }
 
     // Phase 3: Finalizing (70-100%)
-    setState(() => _uploadStatusText = "Finalizing...");
     for (int i = 71; i <= 100; i++) {
       await Future.delayed(const Duration(milliseconds: 300));
-      setState(() => _uploadProgress = i.toDouble());
+      if (!mounted) return;
+      setState(() {
+        _uploadProgress = i.toDouble();
+        _uploadStatusText = "Finalizing...";
+      });
     }
 
     await Future.delayed(const Duration(milliseconds: 500));
@@ -166,12 +177,11 @@ class _UploadContractPageState extends State<UploadContractPage> {
     final promptText =
         "Extract the following details from the contract in clean markdown format without any explanation: Seller, Buyer, Seller Agent Name, Buyer Agent Name, Listing Agent Name, Listing Agent Company Name, Listing Agent Phone, Listing Agent Email, Selling Agent Name, Selling Agent Company Name, Selling Agent Phone, Selling Agent Email, Escrow Agent Name, Escrow Agent Phone, Escrow Agent Email, Property Address, Property Tax ID, Contract Type (Cash or Finance),  Closing Date (use actual date if present in the contract, otherwise use relative format like '(35 days after Effective Date)'). For all other date fields — Initial Escrow Deposit Due Date, Loan Application Due Date, Additional Escrow Deposit Due Date, Inspection Period Deadline, Loan Approval Due Date, Title Evidence Due Date — return relative offsets like '(5 days after Effective Date)' or '(10 days before Closing Date)' only if actual dates are not present,if both are present that is good gave both of them. Do not include full calendar dates unless they are explicitly written in the contract.";
 
-     final progressFuture = _simulateUploadProgress();
 
+    final progressFuture = _simulateUploadProgress();
 
     try {
       String apiResponseBody;
-
 
       if (kIsWeb) {
         // For web, process directly without background task
@@ -181,50 +191,69 @@ class _UploadContractPageState extends State<UploadContractPage> {
         );
         apiResponseBody = response?.body ?? '';
       } else {
-        // For mobile, use background processing
-        final filePath = await _saveFileForBackgroundProcessing(
-            _selectedFile!.bytes!,
-            _selectedFile!.name
+        // For mobile, process directly for immediate feedback
+        final platformFile = PlatformFile(
+          name: _selectedFile!.name,
+          size: _selectedFile!.size,
+          bytes: _selectedFile!.bytes,
         );
 
-        final backgroundArgs = BackgroundArgs(
-          filePath,
-          _selectedFile!.name,
-          promptText,
-          fileBytes: _selectedFile!.bytes, // Pass bytes for mobile too
+        final response = await ApiService.uploadContractWithPrompt(
+          selectedFile: platformFile,
+          promptText: promptText,
         );
-
-        apiResponseBody = await BackgroundTaskManager.processInBackground(backgroundArgs);
+        apiResponseBody = response?.body ?? '';
       }
 
       // Wait for progress to complete
       await progressFuture;
 
+      if (!mounted) return; // Check if widget is still mounted
+
       if (apiResponseBody.isNotEmpty) {
         final parsedData = parseTextToJson(apiResponseBody);
         _showReviewDialog(parsedData);
-        await NotificationService.showUploadCompleteNotification(
-          title: 'Upload Complete',
-          body: 'Your document has been processed successfully',
-          payload: 'review_page',
-        );
+
+        // Show success notification on mobile
+        if (!kIsWeb) {
+          await NotificationService.showUploadCompleteNotification(
+            title: 'Upload Complete',
+            body: 'Your document has been processed successfully',
+            payload: 'review_page',
+          );
+        }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Upload failed")));
-        await NotificationService.showUploadFailedNotification();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Upload failed"))
+          );
+        }
+
+        // Show failure notification on mobile
+        if (!kIsWeb) {
+          await NotificationService.showUploadFailedNotification();
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Upload error: $e")));
-      await NotificationService.showUploadFailedNotification();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Upload error: $e"))
+        );
+      }
+
+      // Show failure notification on mobile
+      if (!kIsWeb) {
+        await NotificationService.showUploadFailedNotification();
+      }
     } finally {
-      setState(() {
-        _isUploading = false;
-        _uploadProgress = 0;
-      });
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _uploadProgress = 0;
+        });
+      }
     }
   }
-
   Future<String> _saveFileForBackgroundProcessing(Uint8List fileBytes, String fileName) async {
     final directory = await getTemporaryDirectory();
     final file = File('${directory.path}/$fileName');

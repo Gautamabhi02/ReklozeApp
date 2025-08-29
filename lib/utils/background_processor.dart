@@ -1,41 +1,58 @@
 import 'dart:typed_data';
-import 'dart:math';
+import 'dart:io';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:workmanager/workmanager.dart';
 import '../api/api_service.dart';
 import '../service/notification_service.dart';
-
-
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     if (taskName == 'uploadTask') {
       try {
-        final args = BackgroundArgs(
-          inputData!['filePath'] ?? '',
-          inputData['fileName'] ?? '',
-          inputData['prompt'] ?? '',
+        final filePath = inputData!['filePath'] ?? '';
+        final fileName = inputData['fileName'] ?? '';
+        final prompt = inputData['prompt'] ?? '';
+
+        final file = File(filePath);
+        if (!await file.exists()) {
+          await NotificationService.showUploadFailedNotification();
+          return Future.value(false);
+        }
+
+        final fileBytes = await file.readAsBytes();
+        final platformFile = PlatformFile(
+          name: fileName,
+          size: fileBytes.length,
+          bytes: fileBytes,
         );
 
-        final result = await runBackgroundProcessing(args);
+        final response = await ApiService.uploadContractWithPrompt(
+          selectedFile: platformFile,
+          promptText: prompt,
+        );
 
-        if (result.isNotEmpty) {
-          // Show notification only when successful
-          await NotificationService.showUploadCompleteNotification(
-            title: 'Upload Complete',
-            body: 'Your document upload is complete',
-            payload: 'review_page',
-          );
+        if (response != null && response.body.isNotEmpty) {
+          // ✅ Check if app is in foreground or background
+          if (!kIsWeb) {
+            final isForeground =
+                WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+            if (!isForeground) {
+              await NotificationService.showUploadCompleteNotification(
+                title: 'Upload Complete',
+                body: 'Your document upload is complete',
+                payload: 'review_page',
+              );
+            }
+          }
           return Future.value(true);
         } else {
-          // Show failure notification
           await NotificationService.showUploadFailedNotification();
           return Future.value(false);
         }
       } catch (e) {
-        // Show failure notification on error
+        print('Background processing error: $e');
         await NotificationService.showUploadFailedNotification();
         return Future.value(false);
       }
@@ -43,7 +60,6 @@ void callbackDispatcher() {
     return Future.value(false);
   });
 }
-
 
 class BackgroundArgs {
   final String filePath;
@@ -81,12 +97,16 @@ Future<void> initializeBackgroundProcessing() async {
 Future<void> scheduleBackgroundUpload(BackgroundArgs args) async {
   if (kIsWeb) {
     // Process immediately for web
-    await runBackgroundProcessing(args);
-    await NotificationService.showUploadCompleteNotification(
-      title: 'Upload Complete',
-      body: 'Your upload document is complete',
-      payload: 'review_page',
-    );
+    final result = await runBackgroundProcessing(args);
+    if (result.isNotEmpty) {
+      await NotificationService.showUploadCompleteNotification(
+        title: 'Upload Complete',
+        body: 'Your upload document is complete',
+        payload: 'review_page',
+      );
+    } else {
+      await NotificationService.showUploadFailedNotification();
+    }
     return;
   }
 
@@ -97,6 +117,7 @@ Future<void> scheduleBackgroundUpload(BackgroundArgs args) async {
     constraints: Constraints(
       networkType: NetworkType.connected,
     ),
+    existingWorkPolicy: ExistingWorkPolicy.replace,
   );
 }
 
@@ -121,33 +142,21 @@ Future<String> runBackgroundProcessing(BackgroundArgs args) async {
   }
 }
 
-
 class BackgroundTaskManager {
   static Future<void> initialize() async {
     await initializeBackgroundProcessing();
-    await NotificationService.initialize();
   }
 
   static Future<String> processInBackground(BackgroundArgs args) async {
     try {
-      final result = await runBackgroundProcessing(args);
-
-      if (result.isNotEmpty) {
-        // Show notification only when successful
-        await NotificationService.showUploadCompleteNotification(
-          title: 'Upload Complete',
-          body: 'Your document upload is complete',
-          payload: 'review_page',
-        );
-        return result;
+      if (kIsWeb) {
+        return await runBackgroundProcessing(args);
       } else {
-        // Show failure notification
-        await NotificationService.showUploadFailedNotification();
-        return '';
+        // For Android, use WorkManager
+        await scheduleBackgroundUpload(args);
+        return ''; // WorkManager handles the processing asynchronously
       }
     } catch (e) {
-      // Show failure notification
-      await NotificationService.showUploadFailedNotification();
       rethrow;
     }
   }
