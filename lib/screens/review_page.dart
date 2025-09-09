@@ -13,6 +13,7 @@ import '../api/ApplynxService.dart';
 import 'package:pdfx/pdfx.dart';
 
 import '../api/api_service.dart';
+import '../service/opportunity_notification_service.dart';
 import '../service/user_session_service.dart';
 import '../widgets/contract_progress_bar.dart';
 
@@ -689,6 +690,10 @@ class _ReviewPageState extends State<ReviewPage> {
 
       if (oppCreated && opportunityName != null && opportunityId != null) {
         print('Saving opportunity: $opportunityName');
+        //
+         final notificationService = OpportunityNotificationService();
+         await notificationService.scheduleAllDateNotifications();
+        debugPrint('Contract date notifications scheduled');
         try {
           final saveResponse = await ApiService.saveOpportunity(
               userId,
@@ -910,6 +915,8 @@ class _ReviewPageState extends State<ReviewPage> {
     opportunityCustomFields = _prepareOpportunityFields(newContractNumber);
     final random=Random();
     final randomNumber = random.nextInt(9000)+1000;
+    final opportunityNotificationService = OpportunityNotificationService();
+    await opportunityNotificationService.scheduleAllDateNotifications();
 
 
     final opportunityNewName =

@@ -6,20 +6,26 @@ import 'package:rekloze/screens/calendar_page.dart';
 import 'package:rekloze/screens/home_page.dart';
 import 'package:rekloze/screens/upload_contract_page.dart';
 import 'package:rekloze/service/notification_service.dart';
+import 'package:rekloze/service/opportunity_notification_service.dart';
 import 'package:rekloze/service/user_session_service.dart';
 import 'package:rekloze/utils/background_processor.dart';
 import 'screens/login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize services in order
   await NotificationService.initialize();
   await BackgroundTaskManager.initialize();
+
+  // Initialize and schedule opportunity notifications
+  await OpportunityNotificationService.initialize();
+  // The scheduling now happens automatically in the initialize method
 
   // Initialize Riverpod and session
   String? token;
   try {
     await UserSessionService().initialize();
-
     token = UserSessionService().token;
   } catch (e) {
     debugPrint('Initialization error: $e');
@@ -32,7 +38,7 @@ void main() async {
   );
 }
 
-class MyApp extends ConsumerWidget { // Changed to ConsumerWidget
+class MyApp extends ConsumerWidget {
   final String initialRoute;
   const MyApp({super.key, required this.initialRoute});
 
@@ -59,7 +65,7 @@ class MyApp extends ConsumerWidget { // Changed to ConsumerWidget
         '/homePage': (context) => const HomePage(),
         '/contract': (context) => const UploadContractPage(),
         '/editContractTimeline': (context) => EditContractTimelinePdfPage(),
-        '/calender':(context)=> const CalendarPage(),
+        '/calender': (context) => const CalendarPage(),
       },
     );
   }
@@ -91,13 +97,23 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Center(
         child: Column(
-
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             const Text('You have pushed the button this many times:'),
             Text(
               '$_counter',
               style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            // Add test button for notifications
+            ElevatedButton(
+              onPressed: () async {
+                // Test immediate notification
+                await OpportunityNotificationService().showTestNotification();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Test notification sent!')),
+                );
+              },
+              child: const Text('Test Notification'),
             ),
           ],
         ),
@@ -106,7 +122,7 @@ class _MyHomePageState extends State<MyHomePage> {
         onPressed: _incrementCounter,
         tooltip: 'Increment',
         child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      ),
     );
   }
 }

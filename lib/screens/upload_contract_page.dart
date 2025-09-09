@@ -11,6 +11,7 @@ import 'package:path_provider/path_provider.dart';
 import '../api/ApplynxService.dart';
 import '../api/api_service.dart';
 import '../service/notification_service.dart';
+import '../service/opportunity_notification_service.dart';
 import '../utils/background_processor.dart';
 import '../widgets/contract_progress_bar.dart';
 import '../widgets/custom_navbar.dart';
@@ -213,12 +214,14 @@ class _UploadContractPageState extends State<UploadContractPage> {
       if (apiResponseBody.isNotEmpty) {
         final parsedData = parseTextToJson(apiResponseBody);
         _showReviewDialog(parsedData);
+        final notificationService = OpportunityNotificationService();
+        await notificationService.scheduleAllDateNotifications();
 
         // Show success notification on mobile
         if (!kIsWeb) {
           await NotificationService.showUploadCompleteNotification(
             title: 'Upload Complete',
-            body: 'Your document has been processed successfully',
+            body: 'Your document has been processed successfully. Date reminders are now active.',
             payload: 'review_page',
           );
         }
