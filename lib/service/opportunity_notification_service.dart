@@ -5,7 +5,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'dart:io';
 import 'package:workmanager/workmanager.dart';
 
-// Global callback dispatcher - MUST be top-level or static
+// Global callback dispatcher
 @pragma('vm:entry-point')
 void dateNotificationCallbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
@@ -33,7 +33,6 @@ void dateNotificationCallbackDispatcher() {
   });
 }
 
-// Helper function to initialize notifications in background
 Future<void> _initializeNotificationsInBackground() async {
   final FlutterLocalNotificationsPlugin notificationsPlugin =
   FlutterLocalNotificationsPlugin();
@@ -62,8 +61,7 @@ Future<void> _showBackgroundNotification(
     priority: Priority.high,
     playSound: true,
     enableVibration: true,
-    // Remove custom sound if it's not properly configured
-    // sound: RawResourceAndroidNotificationSound('notification_ringtone'),
+    sound: RawResourceAndroidNotificationSound('notification_ringtone'),
   );
 
   const NotificationDetails notificationDetails =
@@ -93,16 +91,16 @@ class OpportunityNotificationService {
   factory OpportunityNotificationService() => _instance;
   OpportunityNotificationService._internal();
 
-  // Hardcoded dates - using 2025 dates for testing
+
   final Map<String, DateTime> hardcodedDates = {
     'Effective Contract Date': DateTime(2025, 9, 11),
     'Initial escrow deposit Due Date': DateTime(2025, 9, 13),
-    'Loan Application Due Date': DateTime(2025, 9, 12),  // Changed to future date
-    'Additional Escrow Deposit Due Date': DateTime(2025, 9, 14),  // Changed to future date
+    'Loan Application Due Date': DateTime(2025, 9, 12),
+    'Additional Escrow Deposit Due Date': DateTime(2025, 9, 14),
     'Inspection Period Ends': DateTime(2025, 9, 21),
     'Loan Approval Period Ends': DateTime(2025, 10, 11),
     'Title Evidence Due Date': DateTime(2025, 10, 6),
-    'Closing Date': DateTime(2025, 10, 11),
+    'Closing Date': DateTime(2025, 9, 10),
   };
 
   static Future<void> initialize() async {
@@ -111,7 +109,6 @@ class OpportunityNotificationService {
     // Initialize timezone
     tz.initializeTimeZones();
 
-    // Initialize notifications
     const AndroidInitializationSettings initializationSettingsAndroid =
     AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -149,15 +146,14 @@ class OpportunityNotificationService {
       description: dateChannelDescription,
       importance: Importance.high,
       playSound: true,
-      // Remove custom sound if not configured
-      // sound: RawResourceAndroidNotificationSound('notification_ringtone'),
+       sound: RawResourceAndroidNotificationSound('notification_ringtone'),
     );
 
     final androidPlugin = _notificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(channel);
 
-    debugPrint('✅ Date notification channel created');
+    debugPrint('Date notification channel created');
   }
 
   static Future<void> _requestPermissions() async {
@@ -176,7 +172,7 @@ class OpportunityNotificationService {
     // Cancel all existing tasks first
     await Workmanager().cancelAll();
 
-    debugPrint('📅 Starting to schedule date notifications...');
+    debugPrint(' Starting to schedule date notifications...');
     debugPrint('Current time: ${DateTime.now()}');
 
     int scheduledCount = 0;
@@ -192,8 +188,8 @@ class OpportunityNotificationService {
       final wasScheduled2Days = await _scheduleSingleNotification(
           dateName,
           targetDate,
-          23, // 9 PM
-          15, // 30 minutes
+          1, // 9 PM
+          05, // 30 minutes
           daysBefore: 2,
           notificationId: notificationId++,
           message: 'is coming in 2 days'
@@ -204,8 +200,8 @@ class OpportunityNotificationService {
       final wasScheduledSameDay = await _scheduleSingleNotification(
           dateName,
           targetDate,
-          23,  // 9 AM
-          18, // 30 minutes
+          1,  // 9 AM
+          07, // 30 minutes
           daysBefore: 0,
           notificationId: notificationId++,
           message: 'is today'
@@ -215,7 +211,6 @@ class OpportunityNotificationService {
 
     debugPrint('✅ Scheduled $scheduledCount date notifications total');
 
-    // Show immediate test notification to verify setup
     await showTestNotification();
   }
 
@@ -244,12 +239,13 @@ class OpportunityNotificationService {
       final now = DateTime.now();
       final delay = scheduledDateTime.difference(now);
 
-      debugPrint('---');
       debugPrint('Date: $dateName ($message)');
       debugPrint('Target date: $targetDate');
       debugPrint('Notification time: $scheduledDateTime');
       debugPrint('Current time: $now');
       debugPrint('Delay: $delay');
+
+      debugPrint('---------Delay:----------------------------');
 
       // Skip if time already passed
       if (delay.isNegative) {
@@ -257,7 +253,6 @@ class OpportunityNotificationService {
         return false;
       }
 
-      // For testing: if delay is more than 1 day, schedule a test in 30 seconds
       Duration actualDelay = delay;
       if (delay.inDays > 1 && kDebugMode) {
         actualDelay = Duration(seconds: 30 + (notificationId % 10) * 10);
@@ -272,7 +267,7 @@ class OpportunityNotificationService {
 
       await Workmanager().registerOneOffTask(
         taskName,
-        taskName, // Use same name for task type
+        taskName,
         inputData: {
           'dateName': dateName,
           'title': title,
@@ -281,7 +276,7 @@ class OpportunityNotificationService {
         },
         initialDelay: actualDelay,
         constraints: Constraints(
-          networkType: NetworkType.not_required, // Don't require network
+          networkType: NetworkType.not_required,
         ),
         existingWorkPolicy: ExistingWorkPolicy.replace,
       );
