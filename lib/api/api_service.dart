@@ -193,7 +193,8 @@ class ApiService {
   static Future<http.Response?> saveOpportunity(
       String userId,
       String opportunityId,
-      String opportunityName
+      String opportunityName,
+      Map<String, DateTime?> dateFields // Add this parameter
       ) async {
     try {
       final url = Uri.parse('${Env.baseUrl}/UserOpportunity/save');
@@ -205,6 +206,15 @@ class ApiService {
           'userId': int.tryParse(userId) ?? 0,
           'oppurtunityId': opportunityId,
           'oppurtunityName': opportunityName,
+          // Add all date fields
+          'effective_date': dateFields['Effective Date']?.toIso8601String(),
+          'initial_escrow_deposit_due_date': dateFields['Initial Escrow Deposit Due Date']?.toIso8601String(),
+          'loan_application_due_date': dateFields['Loan Application Due Date']?.toIso8601String(),
+          'additional_escrow_deposit_due_date': dateFields['Additional Escrow Deposit Due Date']?.toIso8601String(),
+          'inspection_period_deadline': dateFields['Inspection Period Deadline']?.toIso8601String(),
+          'loan_approval_due_date': dateFields['Loan Approval Due Date']?.toIso8601String(),
+          'title_evidence_due_date': dateFields['Title Evidence Due Date']?.toIso8601String(),
+          'closing_date': dateFields['Closing Date']?.toIso8601String(),
         }),
       );
       return response;
@@ -212,6 +222,7 @@ class ApiService {
       print('Error saving opportunity: $e');
       return null;
     }
+
   }
 
   static Future<http.Response?> getOpportunitiesByUserId(String userId) async {
@@ -226,9 +237,8 @@ class ApiService {
       print('Error getting opportunities: $e');
       return null;
     }
+
   }
-
-
 
 }
 

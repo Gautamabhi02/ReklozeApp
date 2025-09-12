@@ -691,14 +691,14 @@ class _ReviewPageState extends State<ReviewPage> {
       if (oppCreated && opportunityName != null && opportunityId != null) {
         print('Saving opportunity: $opportunityName');
         //
-         final notificationService = OpportunityNotificationService();
-         await notificationService.scheduleAllDateNotifications();
+        await OpportunityNotificationService().scheduleAllDateNotifications();
         debugPrint('Contract date notifications scheduled');
         try {
           final saveResponse = await ApiService.saveOpportunity(
               userId,
               opportunityId as String,
-              opportunityName!
+              opportunityName!,
+              dateFields
           );
 
           // print('API Response: ${saveResponse?.statusCode}');
@@ -915,9 +915,7 @@ class _ReviewPageState extends State<ReviewPage> {
     opportunityCustomFields = _prepareOpportunityFields(newContractNumber);
     final random=Random();
     final randomNumber = random.nextInt(9000)+1000;
-    final opportunityNotificationService = OpportunityNotificationService();
-    await opportunityNotificationService.scheduleAllDateNotifications();
-
+    await OpportunityNotificationService().scheduleAllDateNotifications();
 
     final opportunityNewName =
         'Contract #$newContractNumber - ${propertyAddressController.text.isNotEmpty ? propertyAddressController.text : ""} ';

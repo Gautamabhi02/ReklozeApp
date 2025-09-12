@@ -4,8 +4,12 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'dart:io';
 import 'package:workmanager/workmanager.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:rekloze/service/user_session_service.dart';
+import 'package:rekloze/api/api_service.dart';
 
-// Global callback dispatcher
+// Global callback dispatcher - MUST be top-level or static
 @pragma('vm:entry-point')
 void dateNotificationCallbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
@@ -16,12 +20,14 @@ void dateNotificationCallbackDispatcher() {
 
     if (taskName.startsWith('date_reminder_')) {
       try {
-        final dateName = inputData?['dateName'] ?? '';
-        final title = inputData?['title'] ?? '';
-        final body = inputData?['body'] ?? '';
+        final dateName = inputData?['dateName'] ?? 'Contract Date';
+        final title = inputData?['title'] ?? 'Contract Date Reminder';
+        final body = inputData?['body'] ?? 'You have an upcoming contract date';
         final notificationId = inputData?['notificationId'] ?? 0;
+        final opportunityName = inputData?['opportunityName'] ?? 'Your Contract';
 
-        debugPrint('📋 Processing date notification: $dateName');
+        debugPrint('📋 Processing date notification: $dateName for $opportunityName');
+
         await _showBackgroundNotification(title, body, notificationId, dateName);
         return Future.value(true);
       } catch (e) {
@@ -33,6 +39,7 @@ void dateNotificationCallbackDispatcher() {
   });
 }
 
+// Helper function to initialize notifications in background
 Future<void> _initializeNotificationsInBackground() async {
   final FlutterLocalNotificationsPlugin notificationsPlugin =
   FlutterLocalNotificationsPlugin();
@@ -61,7 +68,8 @@ Future<void> _showBackgroundNotification(
     priority: Priority.high,
     playSound: true,
     enableVibration: true,
-    sound: RawResourceAndroidNotificationSound('notification_ringtone'),
+    // Remove custom sound if it's not properly configured
+     sound: RawResourceAndroidNotificationSound('notification_ringtone'),
   );
 
   const NotificationDetails notificationDetails =
@@ -75,7 +83,7 @@ Future<void> _showBackgroundNotification(
     payload: 'date_reminder:$dateName',
   );
 
-  debugPrint('✅ Background notification shown: $title');
+  debugPrint('✅ Background notification shown: $title - $body');
 }
 
 class OpportunityNotificationService {
@@ -86,22 +94,13 @@ class OpportunityNotificationService {
   static const String dateChannelName = 'Contract Date Reminders';
   static const String dateChannelDescription = 'Notifications for contract date deadlines';
 
-  // Instance for accessing hardcoded dates
+  // Instance for accessing API dates
   static final OpportunityNotificationService _instance = OpportunityNotificationService._internal();
   factory OpportunityNotificationService() => _instance;
   OpportunityNotificationService._internal();
 
-
-  final Map<String, DateTime> hardcodedDates = {
-    'Effective Contract Date': DateTime(2025, 9, 11),
-    'Initial escrow deposit Due Date': DateTime(2025, 9, 13),
-    'Loan Application Due Date': DateTime(2025, 9, 12),
-    'Additional Escrow Deposit Due Date': DateTime(2025, 9, 14),
-    'Inspection Period Ends': DateTime(2025, 9, 21),
-    'Loan Approval Period Ends': DateTime(2025, 10, 11),
-    'Title Evidence Due Date': DateTime(2025, 10, 6),
-    'Closing Date': DateTime(2025, 9, 10),
-  };
+  // Map to store dates for each opportunity
+  final Map<String, Map<String, DateTime?>> _opportunityDates = {};
 
   static Future<void> initialize() async {
     if (kIsWeb) return;
@@ -128,13 +127,13 @@ class OpportunityNotificationService {
     // Initialize WorkManager with the global callback
     await Workmanager().initialize(
       dateNotificationCallbackDispatcher,
-      isInDebugMode: true,
+      isInDebugMode: true, // Keep debug mode for testing
     );
 
     debugPrint('✅ OpportunityNotificationService initialized successfully');
 
-    // Schedule notifications immediately after initialization
-    await _instance.scheduleAllDateNotifications();
+    // Load and schedule notifications for current user
+    await _instance._loadAndScheduleUserOpportunities();
   }
 
   static Future<void> _createDateNotificationChannel() async {
@@ -146,14 +145,15 @@ class OpportunityNotificationService {
       description: dateChannelDescription,
       importance: Importance.high,
       playSound: true,
-       sound: RawResourceAndroidNotificationSound('notification_ringtone'),
+      // Remove custom sound if not configured
+      sound: RawResourceAndroidNotificationSound('notification_ringtone'),
     );
 
     final androidPlugin = _notificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(channel);
 
-    debugPrint('Date notification channel created');
+    debugPrint('✅ Date notification channel created');
   }
 
   static Future<void> _requestPermissions() async {
@@ -166,52 +166,146 @@ class OpportunityNotificationService {
     debugPrint('Notification permission granted: $granted');
   }
 
-  Future<void> scheduleAllDateNotifications() async {
-    if (kIsWeb) return;
+  // Load opportunities for current user from API
+  Future<void> _loadAndScheduleUserOpportunities() async {
+    try {
+      final userSession = UserSessionService();
+      await userSession.initialize();
+      final userId = userSession.userId?.toString();
 
-    // Cancel all existing tasks first
-    await Workmanager().cancelAll();
+      if (userId == null) {
+        debugPrint('❌ User not logged in, cannot load opportunities');
+        return;
+      }
 
-    debugPrint(' Starting to schedule date notifications...');
-    debugPrint('Current time: ${DateTime.now()}');
+      debugPrint('👤 Loading opportunities for user ID: $userId');
 
-    int scheduledCount = 0;
-    int notificationId = 1000;
+      // Fetch opportunities from API
+      final response = await ApiService.getOpportunitiesByUserId(userId);
 
-    for (var entry in hardcodedDates.entries) {
-      final dateName = entry.key;
-      final targetDate = entry.value;
+      if (response?.statusCode == 200) {
+        final responseData = json.decode(response!.body);
+        if (responseData['success'] == true && responseData['data'] != null) {
+          final opportunities = responseData['data'] as List<dynamic>;
 
-      debugPrint('Processing: $dateName - Target: $targetDate');
+          debugPrint('📊 Found ${opportunities.length} opportunities for user $userId');
 
-      // Schedule notification 2 days before at 9:30 PM
-      final wasScheduled2Days = await _scheduleSingleNotification(
-          dateName,
-          targetDate,
-          1, // 9 PM
-          05, // 30 minutes
-          daysBefore: 2,
-          notificationId: notificationId++,
-          message: 'is coming in 2 days'
-      );
-      if (wasScheduled2Days) scheduledCount++;
+          // Clear existing data and cancel all notifications
+          _opportunityDates.clear();
+          await Workmanager().cancelAll();
 
-      // Schedule notification on the actual date at 9:30 AM
-      final wasScheduledSameDay = await _scheduleSingleNotification(
-          dateName,
-          targetDate,
-          1,  // 9 AM
-          07, // 30 minutes
-          daysBefore: 0,
-          notificationId: notificationId++,
-          message: 'is today'
-      );
-      if (wasScheduledSameDay) scheduledCount++;
+          // Process each opportunity
+          for (final opportunity in opportunities) {
+            await _processOpportunity(opportunity, userId);
+          }
+
+          debugPrint('✅ Successfully loaded ${_opportunityDates.length} opportunities');
+
+          // Show test notification to confirm scheduling worked
+          await showTestNotification();
+        } else {
+          debugPrint('❌ API response indicates failure: ${responseData['message']}');
+        }
+      } else {
+        debugPrint('❌ Failed to fetch opportunities: ${response?.statusCode}');
+        // Show error notification
+        await _showErrorNotification('Failed to load opportunities: ${response?.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading user opportunities: $e');
+      await _showErrorNotification('Error loading opportunities: $e');
     }
+  }
 
-    debugPrint('✅ Scheduled $scheduledCount date notifications total');
+  // Process a single opportunity and schedule notifications
+  Future<void> _processOpportunity(Map<String, dynamic> opportunity, String userId) async {
+    try {
+      final opportunityId = opportunity['oppurtunityId']?.toString();
+      final opportunityName = opportunity['oppurtunityName']?.toString();
 
-    await showTestNotification();
+      if (opportunityId == null) {
+        debugPrint('❌ Opportunity missing ID: $opportunity');
+        return;
+      }
+
+      debugPrint('📋 Processing opportunity: $opportunityName ($opportunityId)');
+
+      // Extract dates from the opportunity
+      final Map<String, DateTime?> dates = {
+        'Effective Date': _parseDate(opportunity['effective_date']),
+        'Initial Escrow Deposit Due Date': _parseDate(opportunity['initial_escrow_deposit_due_date']),
+        'Loan Application Due Date': _parseDate(opportunity['loan_application_due_date']),
+        'Additional Escrow Deposit Due Date': _parseDate(opportunity['additional_escrow_deposit_due_date']),
+        'Inspection Period Deadline': _parseDate(opportunity['inspection_period_deadline']),
+        'Loan Approval Due Date': _parseDate(opportunity['loan_approval_due_date']),
+        'Title Evidence Due Date': _parseDate(opportunity['title_evidence_due_date']),
+        'Closing Date': _parseDate(opportunity['closing_date']),
+      };
+
+      // Store dates for this opportunity
+      _opportunityDates[opportunityId] = dates;
+
+      // Schedule notifications for all valid dates
+      int scheduledCount = 0;
+      int notificationId = _generateNotificationId(opportunityId);
+
+      for (final entry in dates.entries) {
+        final dateName = entry.key;
+        final targetDate = entry.value;
+
+        if (targetDate != null) {
+          debugPrint('📅 Scheduling notifications for $dateName: $targetDate');
+
+          // Schedule notification 2 days before at 9:30 PM
+          final wasScheduled2Days = await _scheduleSingleNotification(
+            dateName,
+            targetDate,
+            8, // 9 PM
+            32, // 30 minutes
+            daysBefore: 2,
+            notificationId: notificationId++,
+            message: 'is coming in 2 days',
+            opportunityName: opportunityName ?? 'Contract',
+            userId: userId,
+          );
+          if (wasScheduled2Days) scheduledCount++;
+
+          // Schedule notification on the actual date at 9:30 AM
+          final wasScheduledSameDay = await _scheduleSingleNotification(
+            dateName,
+            targetDate,
+            8,  // 9 AM
+            35,  // 30 minutes
+            daysBefore: 0,
+            notificationId: notificationId++,
+            message: 'is today',
+            opportunityName: opportunityName ?? 'Contract',
+            userId: userId,
+          );
+          if (wasScheduledSameDay) scheduledCount++;
+        }
+      }
+
+      debugPrint('✅ Scheduled $scheduledCount notifications for $opportunityName');
+    } catch (e) {
+      debugPrint('❌ Error processing opportunity: $e');
+    }
+  }
+
+  DateTime? _parseDate(dynamic dateString) {
+    if (dateString == null) return null;
+    try {
+      return DateTime.tryParse(dateString.toString());
+    } catch (e) {
+      debugPrint('❌ Error parsing date: $dateString - $e');
+      return null;
+    }
+  }
+
+  // Generate unique notification ID based on opportunity ID
+  int _generateNotificationId(String opportunityId) {
+    final hash = opportunityId.hashCode;
+    return (hash % 100000).abs(); // Ensure positive 5-digit number
   }
 
   Future<bool> _scheduleSingleNotification(
@@ -221,7 +315,9 @@ class OpportunityNotificationService {
       int minute, {
         int daysBefore = 2,
         int notificationId = 0,
-        String message = 'is coming in 2 days'
+        String message = 'is coming in 2 days',
+        String? opportunityName,
+        required String userId,
       }) async {
     try {
       // Calculate the notification date
@@ -239,13 +335,12 @@ class OpportunityNotificationService {
       final now = DateTime.now();
       final delay = scheduledDateTime.difference(now);
 
+      debugPrint('---');
       debugPrint('Date: $dateName ($message)');
       debugPrint('Target date: $targetDate');
       debugPrint('Notification time: $scheduledDateTime');
       debugPrint('Current time: $now');
       debugPrint('Delay: $delay');
-
-      debugPrint('---------Delay:----------------------------');
 
       // Skip if time already passed
       if (delay.isNegative) {
@@ -253,36 +348,49 @@ class OpportunityNotificationService {
         return false;
       }
 
+      // For testing: if delay is more than 1 day, schedule a test in 30 seconds
       Duration actualDelay = delay;
       if (delay.inDays > 1 && kDebugMode) {
         actualDelay = Duration(seconds: 30 + (notificationId % 10) * 10);
         debugPrint('🧪 TEST MODE: Scheduling in ${actualDelay.inSeconds} seconds');
       }
 
-      final title = '$dateName Reminder';
-      final body = 'Your $dateName $message (${_formatDate(targetDate)}). Please check and be prepared!';
+      // Create user-friendly notification messages
+      final String title;
+      final String body;
+
+      if (daysBefore == 2) {
+        title = '⏰ $dateName Reminder';
+        body = 'Your "$dateName" for "$opportunityName" is coming in 2 days (${_formatDate(targetDate)}). Get prepared!';
+      } else {
+        title = '✅ $dateName Today';
+        body = 'Your "$dateName" for "$opportunityName" is today (${_formatDate(targetDate)})! Don\'t forget to complete it.';
+      }
 
       // Create unique task name
       final taskName = 'date_reminder_${dateName}_${daysBefore}d_${notificationId}';
 
       await Workmanager().registerOneOffTask(
         taskName,
-        taskName,
+        taskName, // Use same name for task type
         inputData: {
           'dateName': dateName,
           'title': title,
           'body': body,
           'notificationId': notificationId,
+          'userId': userId,
+          'opportunityName': opportunityName,
         },
         initialDelay: actualDelay,
         constraints: Constraints(
-          networkType: NetworkType.not_required,
+          networkType: NetworkType.not_required, // Don't require network
         ),
         existingWorkPolicy: ExistingWorkPolicy.replace,
       );
 
       debugPrint('✅ Scheduled: $dateName at ${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}');
       debugPrint('Task will execute in: $actualDelay');
+      debugPrint('Notification message: "$body"');
 
       return true;
     } catch (e) {
@@ -295,9 +403,33 @@ class OpportunityNotificationService {
     return '${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}/${date.year}';
   }
 
+  Future<void> _showErrorNotification(String error) async {
+    if (kIsWeb) return;
+
+    const AndroidNotificationDetails androidNotificationDetails =
+    AndroidNotificationDetails(
+      dateChannelId,
+      dateChannelName,
+      channelDescription: dateChannelDescription,
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+
+    const NotificationDetails notificationDetails =
+    NotificationDetails(android: androidNotificationDetails);
+
+    await _notificationsPlugin.show(
+      998,
+      'Error Loading Dates',
+      error,
+      notificationDetails,
+    );
+  }
+
   Future<void> cancelAllDateNotifications() async {
     if (kIsWeb) return;
     await Workmanager().cancelAll();
+    _opportunityDates.clear();
     debugPrint('All date notifications cancelled');
   }
 
@@ -320,12 +452,66 @@ class OpportunityNotificationService {
 
     await _notificationsPlugin.show(
       999,
-      'Test Date Reminder',
-      'Notifications are working! Your date reminders will appear as scheduled.',
+      'Date Notifications Scheduled',
+      'Your contract date reminders have been scheduled successfully! You\'ll get notifications like:\n\n"Effective Date for Contract #0101 is coming in 2 days (09/13/2025)"',
       notificationDetails,
       payload: 'test_date_notification',
     );
 
     debugPrint('✅ Test notification sent - check your notification tray');
+  }
+
+  // Get dates for a specific opportunity (for debugging)
+  Map<String, DateTime?>? getOpportunityDates(String opportunityId) {
+    return _opportunityDates[opportunityId];
+  }
+
+  // Get all opportunities (for debugging)
+  Map<String, Map<String, DateTime?>> getAllOpportunities() {
+    return Map.from(_opportunityDates);
+  }
+
+  Future<void> scheduleAllDateNotifications() async {
+    if (kIsWeb) return;
+
+    debugPrint('🔄 Manual scheduling triggered - loading user opportunities');
+    await _loadAndScheduleUserOpportunities();
+  }
+
+  // DEBUG METHOD: Force immediate notifications for testing
+  Future<void> triggerImmediateTestNotifications() async {
+    if (kIsWeb) return;
+
+    debugPrint('🚀 Triggering immediate test notifications');
+
+    // Show a test notification immediately
+    await _notificationsPlugin.show(
+      1000,
+      'IMMEDIATE TEST: Notification System Working',
+      'If you see this, notifications are working! Real date reminders will come at the scheduled times.',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          dateChannelId,
+          dateChannelName,
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+    );
+
+    // Schedule a test notification for 10 seconds from now
+    await Workmanager().registerOneOffTask(
+      'test_immediate_10s',
+      'test_immediate_10s',
+      inputData: {
+        'dateName': 'Test Date',
+        'title': 'TEST: Scheduled Notification',
+        'body': 'This is a test notification scheduled for 10 seconds later',
+        'notificationId': 1001,
+      },
+      initialDelay: Duration(seconds: 10),
+    );
+
+    debugPrint('✅ Immediate test notifications triggered');
   }
 }
