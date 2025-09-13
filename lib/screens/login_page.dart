@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rekloze/screens/upload_contract_page.dart';
 
+import '../service/opportunity_notification_service.dart';
 import '../service/user_session_service.dart';
 import 'home_page.dart';
 import 'signup_page.dart';
@@ -45,6 +46,7 @@ class _LoginPageState extends State<LoginPage> {
           await UserSessionService().setAuthToken(response['token']);
           final userData = UserSessionService().decodeToken(response['token']);
           await UserSessionService().setUserData(userData);
+          await OpportunityNotificationService.onUserLogin();
           if (!mounted) return;
           _navigateBasedOnUserStatus(userData);
         }

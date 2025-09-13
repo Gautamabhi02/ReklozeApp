@@ -3,6 +3,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
+import 'opportunity_notification_service.dart';
+
 class UserSessionService {
   static final UserSessionService _instance = UserSessionService._internal();
 
@@ -179,28 +181,33 @@ class UserSessionService {
   }
 
   Future<void> clear() async {
-    _token = null;
-    _userId = null;
-    _username = null;
-    _email = null;
-    _isActive = null;
+    try {
+      await OpportunityNotificationService.onUserLogout();
 
-    _firstName = null;
-    _lastName = null;
-    _middleName = null;
+      _token = null;
+      _userId = null;
+      _username = null;
+      _email = null;
+      _isActive = null;
+      _firstName = null;
+      _lastName = null;
+      _middleName = null;
+      _paymentStatus = null;
 
-    _paymentStatus = null;
-    await _writeToStorage(_tokenKey, null);
-    await _writeToStorage(_userIdKey, null);
-    await _writeToStorage(_usernameKey, null);
-    await _writeToStorage(_emailKey, null);
-    await _writeToStorage(_isActiveKey, null);
+      await _writeToStorage(_tokenKey, null);
+      await _writeToStorage(_userIdKey, null);
+      await _writeToStorage(_usernameKey, null);
+      await _writeToStorage(_emailKey, null);
+      await _writeToStorage(_isActiveKey, null);
+      await _writeToStorage(_firstNameKey, null);
+      await _writeToStorage(_lastNameKey, null);
+      await _writeToStorage(_middleNameKey, null);
+      await _writeToStorage(_paymentStatusKey, null);
 
-    await _writeToStorage(_firstNameKey, null);
-    await _writeToStorage(_lastNameKey, null);
-    await _writeToStorage(_middleNameKey, null);
-
-    await _writeToStorage(_paymentStatusKey, null);
+    } catch (e) {
+      debugPrint('Error clearing user session: $e');
+      throw Exception('Failed to clear user session: $e');
+    }
   }
 
   // Helper methods

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../service/opportunity_notification_service.dart';
 import '../service/user_session_service.dart';
 
 class CustomNavbar extends StatelessWidget {
@@ -7,7 +8,27 @@ class CustomNavbar extends StatelessWidget {
   void _navigateTo(BuildContext context, String route) {
     Navigator.pushReplacementNamed(context, route);
   }
+  Future<void> _logout(BuildContext context) async {
+    try {
+      // Cancel all scheduled notifications before clearing session
+      await OpportunityNotificationService().cancelAllDateNotifications();
 
+      await UserSessionService().clear();
+
+      Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/loginPage',
+              (route) => false
+      );
+    } catch (e) {
+      debugPrint('Logout error: $e');
+      Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/loginPage',
+              (route) => false
+      );
+    }
+  }
   @override
   Widget build(BuildContext context) {
     final session = UserSessionService();
@@ -42,7 +63,7 @@ class CustomNavbar extends StatelessWidget {
                       Text(email, style: const TextStyle(fontSize: 12)),
                   ],
                 ),
-                // currentAccountPicture removed as requested
+
               ),
               Positioned(
                 right: 8,
@@ -57,7 +78,7 @@ class CustomNavbar extends StatelessWidget {
           Expanded(
             child: ListView(
               children: [
-                if (paymentStatus == 'notpaid') // Only show if not paid
+                if (paymentStatus == 'notpaid')
                   ListTile(
                     leading: const Icon(Icons.home),
                     title: const Text('Home'),
@@ -87,7 +108,7 @@ class CustomNavbar extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.logout),
                   title: const Text('Logout'),
-                  onTap: () => _navigateTo(context, '/loginPage'),
+                  onTap: () => _logout(context),
                 ),
               ],
             ),
